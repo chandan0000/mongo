@@ -40,11 +40,7 @@ _INDENT_SPACE_COUNT = 4
 def _fill_spaces(count):
     # type: (int) -> str
     """Fill a string full of spaces."""
-    fill = ''
-    for _ in range(count * _INDENT_SPACE_COUNT):
-        fill += ' '
-
-    return fill
+    return ''.join(' ' for _ in range(count * _INDENT_SPACE_COUNT))
 
 
 def _indent_text(count, unindented_text):
@@ -70,9 +66,7 @@ def get_method_name(name):
     # type: (str) -> str
     """Get a method name from a fully qualified method name."""
     pos = name.rfind('::')
-    if pos == -1:
-        return name
-    return name[pos + 2:]
+    return name if pos == -1 else name[pos + 2:]
 
 
 def get_method_name_from_qualified_method_name(name):
@@ -86,10 +80,7 @@ def get_method_name_from_qualified_method_name(name):
 
     prefix = 'mongo::'
     pos = name.find(prefix)
-    if pos == -1:
-        return name
-
-    return name[len(prefix):]
+    return name if pos == -1 else name[len(prefix):]
 
 
 class IndentedTextWriter(object):

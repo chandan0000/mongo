@@ -66,22 +66,19 @@ def is_primitive_type(cpp_type):
 def _qualify_optional_type(cpp_type):
     # type: (str) -> str
     """Qualify the type as optional."""
-    return 'boost::optional<%s>' % (cpp_type)
+    return f'boost::optional<{cpp_type}>'
 
 
 def _qualify_array_type(cpp_type):
     # type: (str) -> str
     """Qualify the type if the field is an array."""
-    return "std::vector<%s>" % (cpp_type)
+    return f"std::vector<{cpp_type}>"
 
 
 def _optionally_make_call(method_name, param):
     # type: (str, str) -> str
     """Return a call to method_name if it is not None, otherwise return an empty string."""
-    if not method_name:
-        return ''
-
-    return "%s(%s);" % (method_name, param)
+    return f"{method_name}({param});" if method_name else ''
 
 
 class CppTypeBase(metaclass=ABCMeta):
@@ -184,14 +181,11 @@ class _CppTypeBasic(CppTypeBase):
         type_name = self.get_type_name().replace(' ', '')
 
         # If it is not a primitive type, then it is const.
-        if not is_primitive_type(type_name):
-            return True
-
-        # Arrays of bytes should also be const though.
-        if type_name == _STD_ARRAY_UINT8_16:
-            return True
-
-        return False
+        return (
+            type_name == _STD_ARRAY_UINT8_16
+            if is_primitive_type(type_name)
+            else True
+        )
 
     def return_by_reference(self):
         # type: () -> bool
@@ -412,25 +406,19 @@ class _CppTypeArray(_CppTypeDelegating):
 
     def return_by_reference(self):
         # type: () -> bool
-        if self._base.is_view_type():
-            return False
-        return True
+        return not self._base.is_view_type()
 
     def disable_xvalue(self):
         # type: () -> bool
         return True
 
     def get_getter_body(self, member_name):
-        # type: (str) -> str
-        convert = self.get_transform_to_getter_type(member_name)
-        if convert:
+        if convert := self.get_transform_to_getter_type(member_name):
             return common.template_args('return ${convert};', convert=convert)
         return self._base.get_getter_body(member_name)
 
     def get_setter_body(self, member_name, validator_method_name):
-        # type: (str, str) -> str
-        convert = self.get_transform_to_storage_type("value")
-        if convert:
+        if convert := self.get_transform_to_storage_type("value"):
             return common.template_args(
                 'auto _tmpValue = ${convert}; ${optionally_call_validator} ${member_name} = std::move(_tmpValue);',
                 member_name=member_name, optionally_call_validator=_optionally_make_call(
@@ -473,16 +461,13 @@ class _CppTypeOptional(_CppTypeDelegating):
 
     def return_by_reference(self):
         # type: () -> bool
-        if self._base.is_view_type():
-            return False
-        return self._base.return_by_reference()
+        return False if self._base.is_view_type() else self._base.return_by_reference()
 
     def get_getter_body(self, member_name):
         # type: (str) -> str
         base_expression = common.template_args("${member_name}.get()", member_name=member_name)
 
-        convert = self._base.get_transform_to_getter_type(base_expression)
-        if convert:
+        if convert := self._base.get_transform_to_getter_type(base_expression):
             # We need to convert between two different types of optional<T> and yet provide
             # the ability for the user specifiy an uninitialized optional. This occurs
             # for vector<mongo::StringData> and vector<std::string> paired together.

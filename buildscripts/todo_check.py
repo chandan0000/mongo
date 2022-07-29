@@ -52,10 +52,7 @@ class Todo(NamedTuple):
         :param line: Content of line.
         :return: Jira ticket if one was found.
         """
-        match = ISSUE_RE.search(line.upper())
-        if match:
-            return match.group(0)
-        return None
+        return match.group(0) if (match := ISSUE_RE.search(line.upper())) else None
 
 
 @dataclass
@@ -125,8 +122,7 @@ class TodoChecker:
         :param ticket: Jira ticket to search for.
         :return: True if any TODOs were found.
         """
-        todo_list = self.found_todos.with_tickets.get(ticket)
-        if todo_list:
+        if todo_list := self.found_todos.with_tickets.get(ticket):
             print(f"{ticket}")
             self.print_todo_list(todo_list)
             return True
@@ -163,13 +159,10 @@ class TodoChecker:
             return False
 
         found_any = False
-        ticket = Todo.get_issue_key_from_line(commit_message)
-        while ticket:
+        while ticket := Todo.get_issue_key_from_line(commit_message):
             found_any = self.report_on_ticket(ticket) or found_any
             rest_index = commit_message.find(ticket)
             commit_message = commit_message[rest_index + len(ticket):]
-            ticket = Todo.get_issue_key_from_line(commit_message)
-
         print(f"Checking complete - todos found: {found_any}")
         print("*" * 80)
         return found_any

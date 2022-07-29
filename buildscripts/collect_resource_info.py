@@ -40,8 +40,10 @@ def main():
                 response = requests.get("http://localhost:2285/status")
                 if response.status_code != requests.codes.ok:
                     print(
-                        "Received a {} HTTP response: {}".format(response.status_code,
-                                                                 response.text), file=sys.stderr)
+                        f"Received a {response.status_code} HTTP response: {response.text}",
+                        file=sys.stderr,
+                    )
+
                     time.sleep(options.interval)
                     continue
 
@@ -49,13 +51,15 @@ def main():
                 try:
                     res_json = response.json()
                 except ValueError:
-                    print("Invalid JSON object returned with response: {}".format(response.text),
-                          file=sys.stderr)
+                    print(
+                        f"Invalid JSON object returned with response: {response.text}",
+                        file=sys.stderr,
+                    )
+
                     time.sleep(options.interval)
                     continue
 
-                sys_res_dict = {}
-                sys_res_dict["timestamp"] = timestamp
+                sys_res_dict = {"timestamp": timestamp}
                 sys_info = res_json["sys_info"]
                 sys_res_dict["num_cpus"] = sys_info["num_cpus"]
                 sys_res_dict["mem_total"] = sys_info["vmstat"]["total"]

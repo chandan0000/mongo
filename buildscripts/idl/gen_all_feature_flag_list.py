@@ -49,9 +49,13 @@ def gen_all_feature_flags(idl_dir: str, import_dirs: List[str]):
     """Generate a list of all feature flags."""
     all_flags = []
     for idl_path in sorted(lib.list_idls(idl_dir)):
-        for feature_flag in lib.parse_idl(idl_path, import_dirs).spec.feature_flags:
-            if feature_flag.default.literal != "true":
-                all_flags.append(feature_flag.name)
+        all_flags.extend(
+            feature_flag.name
+            for feature_flag in lib.parse_idl(
+                idl_path, import_dirs
+            ).spec.feature_flags
+            if feature_flag.default.literal != "true"
+        )
 
     force_disabled_flags = yaml.safe_load(
         open("buildscripts/resmokeconfig/fully_disabled_feature_flags.yml"))

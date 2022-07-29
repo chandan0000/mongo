@@ -64,7 +64,7 @@ class JasperHandler(logging.Handler):
         id is required for cedar buildlogger, test id and trial are optional.
         """
         logging.Handler.__init__(self)
-        self.name = "{}-{}".format(name, time.monotonic())
+        self.name = f"{name}-{time.monotonic()}"
         self.closed = False
 
         logger_config = get_logger_config(group_id=group_id, test_id=test_id,
@@ -77,11 +77,11 @@ class JasperHandler(logging.Handler):
         try:
             instance = self.stub.LoggingCacheCreate(create_args)
             if not instance.outcome.success:
-                raise RuntimeError("Failed to setup jasper handler: {}".format(
-                    instance.outcome.text))
+                raise RuntimeError(f"Failed to setup jasper handler: {instance.outcome.text}")
         except grpc.RpcError as rpc_err:
-            raise RuntimeError("Failed to setup jasper handler with status code {}: {}".format(
-                rpc_err.code(), rpc_err.details()))
+            raise RuntimeError(
+                f"Failed to setup jasper handler with status code {rpc_err.code()}: {rpc_err.details()}"
+            )
 
     def emit(self, record):
         """Emit a record to the jasper logging backend."""
@@ -95,11 +95,11 @@ class JasperHandler(logging.Handler):
         try:
             outcome = self.stub.SendMessages(logging_payload)
             if not outcome.success:
-                raise RuntimeError("Failed to send log message via jasper: {}".format(outcome.text))
+                raise RuntimeError(f"Failed to send log message via jasper: {outcome.text}")
         except grpc.RpcError as rpc_err:
             raise RuntimeError(
-                "Failed to send log message via jasper with status code {}: {}".format(
-                    rpc_err.code(), rpc_err.details()))
+                f"Failed to send log message via jasper with status code {rpc_err.code()}: {rpc_err.details()}"
+            )
 
     def close(self):
         """Close the logging handler."""
@@ -112,7 +112,8 @@ class JasperHandler(logging.Handler):
             try:
                 outcome = self.stub.LoggingCacheCloseAndRemove(args)
                 if not outcome.success:
-                    raise RuntimeError("Failed to close jasper logger: {}".format(outcome.text))
+                    raise RuntimeError(f"Failed to close jasper logger: {outcome.text}")
             except grpc.RpcError as rpc_err:
-                raise RuntimeError("Failed to close jasper logger with status code {}: {}".format(
-                    rpc_err.code(), rpc_err.details()))
+                raise RuntimeError(
+                    f"Failed to close jasper logger with status code {rpc_err.code()}: {rpc_err.details()}"
+                )

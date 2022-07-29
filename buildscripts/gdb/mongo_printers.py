@@ -52,7 +52,7 @@ class StatusPrinter(object):
 
         info = self.val['_error'].dereference()
         reason = info['reason']
-        return 'Status(%s, %s)' % (code, reason)
+        return f'Status({code}, {reason})'
 
 
 class StatusWithPrinter(object):
@@ -65,7 +65,7 @@ class StatusWithPrinter(object):
     def to_string(self):
         """Return status for printing."""
         if not self.val['_status']['_error']:
-            return 'StatusWith(OK, %s)' % (self.val['_t'])
+            return f"StatusWith(OK, {self.val['_t']})"
 
         code = self.val['_status']['_error']['code']
 
@@ -74,7 +74,7 @@ class StatusWithPrinter(object):
 
         info = self.val['_status']['_error'].dereference()
         reason = info['reason']
-        return 'StatusWith(%s, %s)' % (code, reason)
+        return f'StatusWith({code}, {reason})'
 
 
 class StringDataPrinter(object):
@@ -142,7 +142,7 @@ class BSONObjPrinter(object):
         """Return BSONObj for printing."""
         # The value has been optimized out.
         if self.size == -1:
-            return "BSONObj @ %s - optimized out" % (self.ptr)
+            return f"BSONObj @ {self.ptr} - optimized out"
 
         ownership = "owned" if self.val['_ownedBuffer']['_buffer']['_holder']['px'] else "unowned"
 
@@ -152,21 +152,10 @@ class BSONObjPrinter(object):
             size = hex(size)
 
         if size == 5:
-            return "%s empty BSONObj @ %s" % (ownership, self.ptr)
+            return f"{ownership} empty BSONObj @ {self.ptr}"
 
-        suffix = ""
-        if not self.is_valid:
-            # Wondering why this is unprintable? See PYTHON-1824. The Python
-            # driver's BSON implementation does not support all possible BSON
-            # datetimes. (specifically any BSON datetime where the year is >
-            # datetime.MAXYEAR (usually 9999)).
-            # Attempting to print any BSONObj that contains an out of range
-            # datetime at any level of the document will cause an exception.
-            # There exists no workaround for this in the driver; not even the
-            # TypeDecoder API works for this because the BSON implementation
-            # errors out early when the date is out of range.
-            suffix = " - unprintable or invalid"
-        return "%s BSONObj %s bytes @ %s%s" % (ownership, size, self.ptr, suffix)
+        suffix = "" if self.is_valid else " - unprintable or invalid"
+        return f"{ownership} BSONObj {size} bytes @ {self.ptr}{suffix}"
 
 
 class OplogEntryPrinter(object):
@@ -184,11 +173,8 @@ class OplogEntryPrinter(object):
     def to_string(self):
         """Return OplogEntry for printing."""
         optime = self.val['_entry']['_opTimeBase']
-        optime_str = "ts(%s, %s)" % (optime['_timestamp']['secs'], optime['_timestamp']['i'])
-        return "OplogEntry(%s, %s, %s, %s)" % (
-            str(self.val['_entry']['_durableReplOperation']['_opType']).split('::')[-1],
-            str(self.val['_entry']['_commandType']).split('::')[-1],
-            self.val['_entry']['_durableReplOperation']['_nss']['_ns'], optime_str)
+        optime_str = f"ts({optime['_timestamp']['secs']}, {optime['_timestamp']['i']})"
+        return f"OplogEntry({str(self.val['_entry']['_durableReplOperation']['_opType']).split('::')[-1]}, {str(self.val['_entry']['_commandType']).split('::')[-1]}, {self.val['_entry']['_durableReplOperation']['_nss']['_ns']}, {optime_str})"
 
 
 class UUIDPrinter(object):
@@ -230,12 +216,12 @@ class RecordIdPrinter(object):
         elif rid_format == 1:
             hex_bytes = [int(self.val['_buffer'][i]) for i in range(8)]
             raw_bytes = bytes(hex_bytes)
-            return "RecordId long: %s" % struct.unpack('l', raw_bytes)[0]
+            return f"RecordId long: {struct.unpack('l', raw_bytes)[0]}"
         elif rid_format == 2:
             str_len = int(self.val["_buffer"][0])
             raw_bytes = [int(self.val['_buffer'][i]) for i in range(1, str_len + 1)]
             hex_bytes = [hex(b & 0xFF)[2:].zfill(2) for b in raw_bytes]
-            return "RecordId small string %d hex bytes: %s" % (str_len, str("".join(hex_bytes)))
+            return "RecordId small string %d hex bytes: %s" % (str_len, "".join(hex_bytes))
         elif rid_format == 3:
             holder_ptr = self.val["_ownedBuffer"]["_buffer"]["_holder"]["px"]
             holder = holder_ptr.dereference()
@@ -244,8 +230,12 @@ class RecordIdPrinter(object):
             start_ptr = (holder_ptr + 1).dereference().cast(gdb.lookup_type("char")).address
             raw_bytes = [int(start_ptr[i]) for i in range(1, str_len + 1)]
             hex_bytes = [hex(b & 0xFF)[2:].zfill(2) for b in raw_bytes]
-            return "RecordId big string %d hex bytes @ %s: %s" % (str_len, holder_ptr + 1,
-                                                                  str("".join(hex_bytes)))
+            return "RecordId big string %d hex bytes @ %s: %s" % (
+                str_len,
+                holder_ptr + 1,
+                "".join(hex_bytes),
+            )
+
         else:
             return "unknown RecordId format: %d" % rid_format
 
@@ -262,8 +252,10 @@ class DecorablePrinter(object):
         self.start = decl_vector["_M_impl"]["_M_start"]
         finish = decl_vector["_M_impl"]["_M_finish"]
         decorable_t = val.type.template_argument(0)
-        decinfo_t = gdb.lookup_type('mongo::DecorationRegistry<{}>::DecorationInfo'.format(
-            str(decorable_t).replace("class", "").strip()))
+        decinfo_t = gdb.lookup_type(
+            f'mongo::DecorationRegistry<{str(decorable_t).replace("class", "").strip()}>::DecorationInfo'
+        )
+
         self.count = int((int(finish) - int(self.start)) / decinfo_t.sizeof)
 
     @staticmethod
@@ -273,7 +265,7 @@ class DecorablePrinter(object):
 
     def to_string(self):
         """Return Decorable for printing."""
-        return "Decorable<%s> with %s elems " % (self.val.type.template_argument(0), self.count)
+        return f"Decorable<{self.val.type.template_argument(0)}> with {self.count} elems "
 
     def children(self):
         """Children."""
@@ -287,13 +279,13 @@ class DecorablePrinter(object):
             # constructor, and do some string manipulations.
             # TODO: abstract out navigating a std::function
             type_name = str(descriptor["constructor"])
-            type_name = type_name[0:len(type_name) - 1]
-            type_name = type_name[0:type_name.rindex(">")]
+            type_name = type_name[:-1]
+            type_name = type_name[:type_name.rindex(">")]
             type_name = type_name[type_name.index("constructAt<"):].replace("constructAt<", "")
 
             # If the type is a pointer type, strip the * at the end.
             if type_name.endswith('*'):
-                type_name = type_name[0:len(type_name) - 1]
+                type_name = type_name[:-1]
             type_name = type_name.rstrip()
 
             # Cast the raw char[] into the actual object that is stored there.
@@ -355,8 +347,11 @@ class WtCursorPrinter(object):
         for field in self.val.type.fields():
             field_val = self.val[field.name]
             if field.name == "flags":
-                yield ("flags", "{} ({})".format(field_val,
-                                                 str(_get_flags(field_val, self.cursor_flags))))
+                yield (
+                    "flags",
+                    f"{field_val} ({str(_get_flags(field_val, self.cursor_flags))})",
+                )
+
             else:
                 yield (field.name, field_val)
 
@@ -390,8 +385,11 @@ class WtSessionImplPrinter(object):
         for field in self.val.type.fields():
             field_val = self.val[field.name]
             if field.name == "flags":
-                yield ("flags", "{} ({})".format(field_val,
-                                                 str(_get_flags(field_val, self.session_flags))))
+                yield (
+                    "flags",
+                    f"{field_val} ({str(_get_flags(field_val, self.session_flags))})",
+                )
+
             else:
                 yield (field.name, field_val)
 
@@ -425,8 +423,7 @@ class WtTxnPrinter(object):
         for field in self.val.type.fields():
             field_val = self.val[field.name]
             if field.name == "flags":
-                yield ("flags", "{} ({})".format(field_val,
-                                                 str(_get_flags(field_val, self.txn_flags))))
+                yield ("flags", f"{field_val} ({str(_get_flags(field_val, self.txn_flags))})")
             else:
                 yield (field.name, field_val)
 
@@ -465,8 +462,7 @@ class AbslHashSetPrinterBase(object):
 
     def to_string(self):
         """Return absl::[node/flat]_hash_set for printing."""
-        return "absl::%s_hash_set<%s> with %s elems " % (
-            self.to_str, self.val.type.template_argument(0), self.val["size_"])
+        return f'absl::{self.to_str}_hash_set<{self.val.type.template_argument(0)}> with {self.val["size_"]} elems '
 
 
 class AbslNodeHashSetPrinter(AbslHashSetPrinterBase):
@@ -478,10 +474,8 @@ class AbslNodeHashSetPrinter(AbslHashSetPrinterBase):
 
     def children(self):
         """Children."""
-        count = 0
-        for val in absl_get_nodes(self.val):
+        for count, val in enumerate(absl_get_nodes(self.val)):
             yield (str(count), val.dereference())
-            count += 1
 
 
 class AbslFlatHashSetPrinter(AbslHashSetPrinterBase):
@@ -493,10 +487,8 @@ class AbslFlatHashSetPrinter(AbslHashSetPrinterBase):
 
     def children(self):
         """Children."""
-        count = 0
-        for val in absl_get_nodes(self.val):
+        for count, val in enumerate(absl_get_nodes(self.val)):
             yield (str(count), val.reference_value())
-            count += 1
 
 
 class AbslHashMapPrinterBase(object):
@@ -514,9 +506,7 @@ class AbslHashMapPrinterBase(object):
 
     def to_string(self):
         """Return absl::[node/flat]_hash_map for printing."""
-        return "absl::%s_hash_map<%s, %s> with %s elems " % (
-            self.to_str, self.val.type.template_argument(0), self.val.type.template_argument(1),
-            self.val["size_"])
+        return f'absl::{self.to_str}_hash_map<{self.val.type.template_argument(0)}, {self.val.type.template_argument(1)}> with {self.val["size_"]} elems '
 
 
 class AbslNodeHashMapPrinter(AbslHashMapPrinterBase):

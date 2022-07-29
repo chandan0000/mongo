@@ -269,9 +269,7 @@ class Process(object):
             if env_var in env_diff and env_diff[env_var] == default_env[env_var]:
                 del env_diff[env_var]
 
-        sb = []  # String builder.
-        for env_var in env_diff:
-            sb.append(quote("%s=%s" % (env_var, env_diff[env_var])))
+        sb = [quote(f"{env_var}={env_diff[env_var]}") for env_var in env_diff]
         sb.extend(map(quote, self.args))
 
         return " ".join(sb)

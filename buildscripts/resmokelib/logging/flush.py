@@ -37,8 +37,7 @@ def stop_thread():
     # sometimes wait indefinitely for a response, causing a task timeout.
     _FLUSH_THREAD.join(5 * 60)
 
-    success = not _FLUSH_THREAD.is_alive()
-    return success
+    return not _FLUSH_THREAD.is_alive()
 
 
 def flush_after(handler, delay):

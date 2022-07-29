@@ -76,17 +76,21 @@ class TimeoutInfo(object):
         :param timeout: Timeout value to overwrite.
         :return: TimeoutInfo that overwrites given timeouts.
         """
-        if not exec_timeout and not timeout:
+        if exec_timeout or timeout:
+            return cls(False, exec_timeout=exec_timeout, timeout=timeout)
+        else:
             raise ValueError("Must override either 'exec_timeout' or 'timeout'")
-        return cls(False, exec_timeout=exec_timeout, timeout=timeout)
 
     @property
     def cmd(self):
         """Create a command that sets timeouts as specified."""
-        if not self.use_defaults:
-            return timeout_update(exec_timeout_secs=self.exec_timeout, timeout_secs=self.timeout)
-
-        return None
+        return (
+            None
+            if self.use_defaults
+            else timeout_update(
+                exec_timeout_secs=self.exec_timeout, timeout_secs=self.timeout
+            )
+        )
 
     def __repr__(self):
         """Create a string representation for debugging."""

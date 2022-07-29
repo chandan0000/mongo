@@ -34,8 +34,7 @@ def get_evergreen_api() -> EvergreenApi:
     # Pickup the first config file found in common locations.
     for file in EVERGREEN_CONFIG_LOCATIONS:
         if os.path.isfile(file):
-            evg_api = RetryingEvergreenApi.get_api(config_file=file)
-            return evg_api
+            return RetryingEvergreenApi.get_api(config_file=file)
 
     LOGGER.error("Evergreen config not found in locations.", locations=EVERGREEN_CONFIG_LOCATIONS)
     sys.exit(1)
@@ -103,8 +102,9 @@ def main(expansions_file: str = "expansions.yml") -> None:
     ]
     LOGGER.info(f"Watching powercycle tasks:\n{get_links(powercycle_task_ids)}")
 
-    long_running_task_ids = watch_tasks(powercycle_task_ids, evg_api, WATCH_INTERVAL_SECS)
-    if long_running_task_ids:
+    if long_running_task_ids := watch_tasks(
+        powercycle_task_ids, evg_api, WATCH_INTERVAL_SECS
+    ):
         LOGGER.error(
             f"Found powercycle tasks that are running for more than {POWERCYCLE_TASK_EXEC_TIMEOUT_SECS} "
             f"seconds and most likely something is going wrong in those tasks:\n{get_links(long_running_task_ids)}"

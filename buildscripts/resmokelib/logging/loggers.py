@@ -61,11 +61,16 @@ def _setup_redirects():
         if not config.MRLOG and shutil.which("mrlog"):
             redirect_cmds.append("mrlog")
 
-        redirect_cmds.append(["tee", config.USER_FRIENDLY_OUTPUT])
-        redirect_cmds.append([
-            "grep", "-Ea",
-            r"Summary of|Running.*\.\.\.|invariant|fassert|BACKTRACE|Invalid access|Workload\(s\) started|Workload\(s\)|WiredTiger error|AddressSanitizer|threads with tids|failed to load|Completed cmd|Completed stepdown"
-        ])
+        redirect_cmds.extend(
+            (
+                ["tee", config.USER_FRIENDLY_OUTPUT],
+                [
+                    "grep",
+                    "-Ea",
+                    r"Summary of|Running.*\.\.\.|invariant|fassert|BACKTRACE|Invalid access|Workload\(s\) started|Workload\(s\)|WiredTiger error|AddressSanitizer|threads with tids|failed to load|Completed cmd|Completed stepdown",
+                ],
+            )
+        )
 
     for idx, redirect in enumerate(redirect_cmds):
         # The first redirect reads from stdout. Otherwise read from the previous redirect.
@@ -103,7 +108,7 @@ def new_root_logger(name):
     :param name: The name of the new root logger.
     """
     if name not in config.LOGGING_CONFIG:
-        raise ValueError("Logging configuration should contain the %s component" % name)
+        raise ValueError(f"Logging configuration should contain the {name} component")
 
     logger = logging.getLogger(name)
     logger.setLevel(logging.DEBUG)
@@ -200,7 +205,7 @@ def new_testqueue_logger(test_kind):
 #pylint: disable=too-many-arguments
 def new_test_logger(test_shortname, test_basename, command, parent, job_num, test_id, job_logger):
     """Create a new test logger that will be a child of the given parent."""
-    name = "%s:%s" % (parent.name, test_shortname)
+    name = f"{parent.name}:{test_shortname}"
     logger = logging.Logger(name)
     logger.parent = parent
 
@@ -235,7 +240,7 @@ def new_test_logger(test_shortname, test_basename, command, parent, job_num, tes
 
 def new_test_thread_logger(parent, test_kind, thread_id):
     """Create a new test thread logger that will be the child of the given parent."""
-    name = "%s:%s" % (test_kind, thread_id)
+    name = f"{test_kind}:{thread_id}"
     logger = logging.Logger(name)
     logger.parent = parent
     return logger

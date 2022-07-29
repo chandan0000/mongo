@@ -25,31 +25,22 @@ def _load_defaults(defaults_file: str) -> dict:
             _error("ERROR: expected to read a dictionary. expansions.defaults.yml"
                    "must be a dictionary. Check the indentation.")
 
-        # expansions MUST be strings. Reject any that are not
-        bad_expansions = set()
-        for key, value in defaults.items():
-            if not isinstance(value, str):
-                bad_expansions.add(key)
-
-        if bad_expansions:
+        if bad_expansions := {
+            key
+            for key, value in defaults.items()
+            if not isinstance(value, str)
+        }:
             _error("ERROR: all default expansions must be strings. You can "
                    " fix this error by quoting the values in expansions.defaults.yml. "
                    "Integers, floating points, 'true', 'false', and 'null' "
                    "must be quoted. The following keys were interpreted as "
                    f"other types: {bad_expansions}")
 
-        # These values show up if 1. Python's str is used to naively convert
-        # a boolean to str, 2. A human manually entered one of those strings.
-        # Either way, our shell scripts expect 'true' or 'false' (leading
-        # lowercase), and we reject them as errors. This will probably save
-        # someone a lot of time, but if this assumption proves wrong, start
-        # a conversation in #server-testing.
-        risky_boolean_keys = set()
-        for key, value in defaults.items():
-            if value in ("True", "False"):
-                risky_boolean_keys.add(key)
-
-        if risky_boolean_keys:
+        if risky_boolean_keys := {
+            key
+            for key, value in defaults.items()
+            if value in ("True", "False")
+        }:
             _error("ERROR: Found keys which had 'True' or 'False' as values. "
                    "Shell scripts assume that booleans are represented as 'true'"
                    " or 'false' (leading lowercase). If you added a new boolean, "

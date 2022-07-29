@@ -47,12 +47,12 @@ def get_py_linter(linter_filter):
 
     linter_list = linter_filter.split(",")
 
-    linter_candidates = [linter for linter in _LINTERS if linter.cmd_name in linter_list]
-
-    if not linter_candidates:
+    if linter_candidates := [
+        linter for linter in _LINTERS if linter.cmd_name in linter_list
+    ]:
+        return linter_candidates
+    else:
         raise ValueError("No linters found for filter '%s'" % (linter_filter))
-
-    return linter_candidates
 
 
 def is_interesting_file(file_name):
@@ -94,20 +94,16 @@ def _lint_files(linters, config_dict, file_names):
 def lint_patch(linters, config_dict, file_name):
     # type: (str, Dict[str, str], List[str]) -> None
     """Lint patch command entry point."""
-    file_names = git.get_files_to_check_from_patch(file_name, is_interesting_file)
-
-    # Patch may have files that we do not want to check which is fine
-    if file_names:
+    if file_names := git.get_files_to_check_from_patch(
+        file_name, is_interesting_file
+    ):
         _lint_files(linters, config_dict, file_names)
 
 
 def lint_git_diff(linters, config_dict, _):
     # type: (str, Dict[str, str], List[str]) -> None
     """Lint git diff command entry point."""
-    file_names = gather_changed_files_for_lint(is_interesting_file)
-
-    # Patch may have files that we do not want to check which is fine
-    if file_names:
+    if file_names := gather_changed_files_for_lint(is_interesting_file):
         _lint_files(linters, config_dict, file_names)
 
 
@@ -174,9 +170,14 @@ def main():
 
     dest_prefix = "linter_"
     for linter1 in linters:
-        msg = 'Path to linter %s' % (linter1.cmd_name)
-        parser.add_argument('--' + linter1.cmd_name, type=str, help=msg,
-                            dest=dest_prefix + linter1.cmd_name)
+        msg = f'Path to linter {linter1.cmd_name}'
+        parser.add_argument(
+            f'--{linter1.cmd_name}',
+            type=str,
+            help=msg,
+            dest=dest_prefix + linter1.cmd_name,
+        )
+
 
     parser.add_argument('--linters', type=str,
                         help="Comma separated list of filters to use, defaults to 'all'",

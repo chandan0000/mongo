@@ -32,8 +32,8 @@ def parse_sections():
 
 def load_sym_file_at_addrs(dbg_file, smap):
     """Invoke add-symbol-file with addresses."""
-    cmd = 'add-symbol-file {} {} -s .data {} -s .bss {}'.format(dbg_file, smap['.text'],
-                                                                smap['.data'], smap['.bss'])
+    cmd = f"add-symbol-file {dbg_file} {smap['.text']} -s .data {smap['.data']} -s .bss {smap['.bss']}"
+
     gdb.execute(cmd, to_string=True)
 
 
@@ -53,7 +53,7 @@ class LoadDebugFile(gdb.Command):
 
         dbg_file = arglist[0]
         if not os.path.exists(dbg_file):
-            print('{} is not a valid file path'.format(dbg_file))
+            print(f'{dbg_file} is not a valid file path')
             return
 
         try:
@@ -171,10 +171,7 @@ class LoadDistTest(gdb.Command):
             return "mongod"
         if main_binary_name.endswith('mongo'):
             return "mongo"
-        if main_binary_name.endswith('mongos'):
-            return "mongos"
-
-        return None
+        return "mongos" if main_binary_name.endswith('mongos') else None
 
     # pylint: disable=too-many-branches,too-many-locals
     def invoke(self, args, from_tty):
@@ -204,13 +201,11 @@ class LoadDistTest(gdb.Command):
 
         dwarf_files = []
 
-        bin_dir = os.path.join(dist_test, "bin")
-        if bin_dir:
+        if bin_dir := os.path.join(dist_test, "bin"):
             dwarf_files.extend(find_dwarf_files(bin_dir))
             extend_debug_file_directory(bin_dir)
 
-        lib_dir = os.path.join(dist_test, "lib")
-        if lib_dir:
+        if lib_dir := os.path.join(dist_test, "lib"):
             dwarf_files.extend(find_dwarf_files(lib_dir))
             extend_solib_search_path(lib_dir)
 
@@ -220,8 +215,7 @@ class LoadDistTest(gdb.Command):
         yell_at_user_main_bin = False
         try:
             print("Loading symbols. This will take a while..")
-            main_bin = LoadDistTest.binary_name()
-            if main_bin:
+            if main_bin := LoadDistTest.binary_name():
                 # if we know the name of this executable, load its symbol file
                 main_bin_sections = parse_sections()
                 dbg_file = os.path.join(dist_test, "bin", f"{main_bin}.debug")

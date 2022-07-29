@@ -1,4 +1,5 @@
 """Powercycle test helper functions."""
+
 import atexit
 import collections
 import copy
@@ -38,7 +39,7 @@ from buildscripts.resmokelib.powercycle import powercycle_config, powercycle_con
 from buildscripts.resmokelib.powercycle.lib.services import WindowsService, PosixService
 from buildscripts.resmokelib.utils.filesystem import build_hygienic_bin_path
 
-_IS_WINDOWS = sys.platform == "win32" or sys.platform == "cygwin"
+_IS_WINDOWS = sys.platform in ["win32", "cygwin"]
 _IS_LINUX = sys.platform.startswith("linux")
 _IS_DARWIN = sys.platform == "darwin"
 
@@ -49,7 +50,7 @@ def _try_import(module, name=None):
     If the import fails, then this function doesn't trigger an exception.
     """
     try:
-        module_name = module if not name else name
+        module_name = name or module
         globals()[module_name] = importlib.import_module(module)
     except ImportError:
         pass
@@ -189,20 +190,15 @@ def register_signal_handler(handler):
         signal.signal(signal_num, handler)
 
 
-def dump_stacks_and_exit(signum, frame):  # pylint: disable=unused-argument
+def dump_stacks_and_exit(signum, frame):    # pylint: disable=unused-argument
     """Provide a handler that will dump the stacks of all threads."""
     LOGGER.info("Dumping stacks!")
 
-    sb = []
     frames = sys._current_frames()  # pylint: disable=protected-access
-    sb.append("Total threads: {}\n".format(len(frames)))
-    sb.append("")
-
+    sb = [f"Total threads: {len(frames)}\n", ""]
     for thread_id in frames:
         stack = frames[thread_id]
-        sb.append("Thread {}:".format(thread_id))
-        sb.append("".join(traceback.format_stack(stack)))
-
+        sb.extend((f"Thread {thread_id}:", "".join(traceback.format_stack(stack))))
     LOGGER.info("".join(sb))
 
     if _IS_WINDOWS:
@@ -257,20 +253,20 @@ def get_extension(filename):
 
 def executable_extension():
     """Return executable file extension."""
-    if _IS_WINDOWS:
-        return ".exe"
-    return ""
+    return ".exe" if _IS_WINDOWS else ""
 
 
 def abs_path(path):
     """Return absolute path for 'path'. Raises an exception on failure."""
     if _IS_WINDOWS:
         # Get the Windows absolute path.
-        cmd = "cygpath -wa {}".format(path)
+        cmd = f"cygpath -wa {path}"
         ret, output = execute_cmd(cmd, use_file=True)
         if ret:
-            raise Exception("Command \"{}\" failed with code {} and output message: {}".format(
-                cmd, ret, output))
+            raise Exception(
+                f'Command \"{cmd}\" failed with code {ret} and output message: {output}'
+            )
+
         return output.rstrip().replace("\\", "/")
     return os.path.abspath(os.path.normpath(path))
 
@@ -286,10 +282,14 @@ def symlink_dir(source_dir, dest_dir):
 
 def get_bin_dir(root_dir):
     """Locate the 'bin' directory within 'root_dir' tree."""
-    for root, dirs, _ in os.walk(root_dir):
-        if "bin" in dirs:
-            return os.path.join(root, "bin")
-    return None
+    return next(
+        (
+            os.path.join(root, "bin")
+            for root, dirs, _ in os.walk(root_dir)
+            if "bin" in dirs
+        ),
+        None,
+    )
 
 
 def start_cmd(cmd, use_file=False):
@@ -323,9 +323,7 @@ def start_cmd(cmd, use_file=False):
 
 def get_user_host(user_host):
     """Return a tuple (user, host) from the user_host string."""
-    if "@" in user_host:
-        return tuple(user_host.split("@"))
-    return None, user_host
+    return tuple(user_host.split("@")) if "@" in user_host else (None, user_host)
 
 
 def parse_options(options):
@@ -375,7 +373,7 @@ def download_file(url, file_name, download_retries=5):
                 except requests.exceptions.ChunkedEncodingError as err:
                     download_retries -= 1
                     if download_retries == 0:
-                        raise Exception("Incomplete download for URL {}: {}".format(url, err))
+                        raise Exception(f"Incomplete download for URL {url}: {err}")
                     continue
 
         # Check if file download was completed.
@@ -386,14 +384,15 @@ def download_file(url, file_name, download_retries=5):
             if url_content_length != file_size:
                 download_retries -= 1
                 if download_retries == 0:
-                    raise Exception("Downloaded file size ({} bytes) doesn't match content length"
-                                    "({} bytes) for URL {}".format(file_size, url_content_length,
-                                                                   url))
+                    raise Exception(
+                        f"Downloaded file size ({file_size} bytes) doesn't match content length({url_content_length} bytes) for URL {url}"
+                    )
+
                 continue
 
         return True
 
-    raise Exception("Unknown download problem for {} to file {}".format(url, file_name))
+    raise Exception(f"Unknown download problem for {url} to file {file_name}")
 
 
 def install_tarball(tarball, root_dir):
@@ -406,12 +405,12 @@ def install_tarball(tarball, root_dir):
     if ext == ".tgz":
         with tarfile.open(tarball, "r:gz") as tar_handle:
             tar_handle.extractall(path=root_dir)
-            output = "Unzipped {} to {}: {}".format(tarball, root_dir, tar_handle.getnames())
+            output = f"Unzipped {tarball} to {root_dir}: {tar_handle.getnames()}"
         ret = 0
     elif ext == ".zip":
         with zipfile.ZipFile(tarball, "r") as zip_handle:
             zip_handle.extractall(root_dir)
-            output = "Unzipped {} to {}: {}".format(tarball, root_dir, zip_handle.namelist())
+            output = f"Unzipped {tarball} to {root_dir}: {zip_handle.namelist()}"
         ret = 0
     elif ext == ".msi":
         if not _IS_WINDOWS:
@@ -445,12 +444,14 @@ def install_tarball(tarball, root_dir):
         ret, output = execute_cmd(cmds, use_file=True)
         shutil.rmtree(tmp_dir)
     else:
-        raise Exception("Unsupported file extension to unzip {},"
-                        " supported extensions are {}".format(tarball, extensions))
+        raise Exception(
+            f"Unsupported file extension to unzip {tarball}, supported extensions are {extensions}"
+        )
+
 
     LOGGER.debug(output)
     if ret:
-        raise Exception("Failed to install tarball {}, {}".format(tarball, output))
+        raise Exception(f"Failed to install tarball {tarball}, {output}")
 
 
 def chmod_x_binaries(bin_dir):
@@ -536,7 +537,7 @@ def _do_install_mongod(bin_dir=None, tarball_url="latest", root_dir=None):
 
     # Symlink the bin dir from the tarball to 'root_bin_dir'.
     # Since get_bin_dir returns an abolute path, we need to remove 'root_dir'
-    tarball_bin_dir = get_bin_dir(root_dir).replace("{}/".format(root_dir), "")
+    tarball_bin_dir = get_bin_dir(root_dir).replace(f"{root_dir}/", "")
     LOGGER.debug("Symlink %s to %s", tarball_bin_dir, root_bin_dir)
     symlink_dir(tarball_bin_dir, root_bin_dir)
 
@@ -546,8 +547,7 @@ def get_boot_datetime(uptime_string):
 
     Return -1 if it is not found in 'uptime_string'.
     """
-    match = re.search(r"last booted (.*), up", uptime_string)
-    if match:
+    if match := re.search(r"last booted (.*), up", uptime_string):
         return datetime.datetime(
             *list(map(int, list(map(float, re.split("[ :-]",
                                                     match.groups()[0]))))))
@@ -602,7 +602,7 @@ class MongodControl(object):  # pylint: disable=too-many-instance-attributes
     def __init__(  # pylint: disable=too-many-arguments
             self, bin_dir, db_path, log_path, port, options=None):
         """Initialize MongodControl."""
-        self.process_name = "mongod{}".format(executable_extension())
+        self.process_name = f"mongod{executable_extension()}"
 
         self.bin_dir = bin_dir
         if self.bin_dir:
@@ -649,9 +649,9 @@ class MongodControl(object):  # pylint: disable=too-many-instance-attributes
         opt_string = ""
         for opt_name in self.options_map:
             opt_val, opt_form = self.options_map[opt_name]
-            opt_string += " {}{}".format(opt_form, opt_name)
+            opt_string += f" {opt_form}{opt_name}"
             if opt_val:
-                opt_string += " {}".format(opt_val)
+                opt_string += f" {opt_val}"
         return opt_string
 
     def install(self, root_dir, tarball_url):
@@ -663,9 +663,9 @@ class MongodControl(object):  # pylint: disable=too-many-instance-attributes
             _do_install_mongod(bin_dir=self.bin_dir, tarball_url=tarball_url, root_dir=root_dir)
         self.bin_dir = get_bin_dir(root_dir)
         if not self.bin_dir:
-            ret, output = execute_cmd("ls -lR '{}'".format(root_dir), use_file=True)
+            ret, output = execute_cmd(f"ls -lR '{root_dir}'", use_file=True)
             LOGGER.debug(output)
-            return 1, "No bin dir can be found under {}".format(root_dir)
+            return 1, f"No bin dir can be found under {root_dir}"
         self.bin_path = os.path.join(self.bin_dir, self.process_name)
         # We need to instantiate the Service when installing, since the bin_path
         # is only known after install_mongod runs.
@@ -969,7 +969,7 @@ def remote_handler(options, task_config, root_dir):
 
 def get_backup_path(path, loop_num):
     """Return the backup path based on the loop_num."""
-    return re.sub("-{}$".format(loop_num - 1), "-{}".format(loop_num), path)
+    return re.sub(f"-{loop_num - 1}$", f"-{loop_num}", path)
 
 
 def rsync(src_dir, dest_dir, exclude_files=None):
@@ -978,11 +978,11 @@ def rsync(src_dir, dest_dir, exclude_files=None):
     exclude_options = ""
     exclude_str = ""
     if exclude_files:
-        exclude_str = " (excluding {})".format(exclude_files)
+        exclude_str = f" (excluding {exclude_files})"
         if isinstance(exclude_files, str):
             exclude_files = [exclude_files]
         for exclude_file in exclude_files:
-            exclude_options = "{} --exclude '{}'".format(exclude_options, exclude_file)
+            exclude_options = f"{exclude_options} --exclude '{exclude_file}'"
 
     LOGGER.info("Rsync'ing %s to %s%s", src_dir, dest_dir, exclude_str)
     if not distutils.spawn.find_executable("rsync"):
@@ -1014,10 +1014,7 @@ def rsync(src_dir, dest_dir, exclude_files=None):
 
 def _do_kill_mongod():
     """Kill all mongod processes uncondtionally."""
-    if _IS_WINDOWS:
-        cmds = "taskkill /f /im mongod.exe"
-    else:
-        cmds = "pkill -9 mongod"
+    cmds = "taskkill /f /im mongod.exe" if _IS_WINDOWS else "pkill -9 mongod"
     ret, output = execute_cmd(cmds, use_file=True)
     return ret, output
 
@@ -1065,14 +1062,14 @@ def crash_server_or_kill_mongod(  # pylint: disable=too-many-arguments,too-many-
     LOGGER.info("%s in %d seconds", message_prefix, crash_wait_time)
     time.sleep(crash_wait_time)
 
-    if task_config.crash_method == "internal" or task_config.crash_method == "kill":
+    if task_config.crash_method in ["internal", "kill"]:
         crash_cmd = "crash_server" if task_config.crash_method == "internal" else "kill_mongod"
         crash_func = local_ops.shell
         remote_python = get_remote_python()
         crash_args = [f"{remote_python} {script_name} {client_args} --remoteOperation {crash_cmd}"]
 
     else:
-        message = "Unsupported crash method '{}' provided".format(task_config.crash_method)
+        message = f"Unsupported crash method '{task_config.crash_method}' provided"
         LOGGER.error(message)
         return 1, message
 
@@ -1120,7 +1117,7 @@ def get_mongo_client_args(host=None, port=None, task_config=None,
     if task_config:
         # Set the writeConcern
         if task_config.write_concern:
-            mongo_args.update(yaml.safe_load(task_config.write_concern))
+            mongo_args |= yaml.safe_load(task_config.write_concern)
         # Set the readConcernLevel
         if task_config.read_concern_level:
             mongo_args["readConcernLevel"] = task_config.read_concern_level
@@ -1130,8 +1127,8 @@ def get_mongo_client_args(host=None, port=None, task_config=None,
 def mongo_shell(  # pylint: disable=too-many-arguments
         mongo_path, work_dir, host_port, mongo_cmds, retries=5, retry_sleep=5):
     """Start mongo_path from work_dir, connecting to host_port and executes mongo_cmds."""
-    cmds = "cd {}; echo {} | {} {}".format(
-        pipes.quote(work_dir), pipes.quote(mongo_cmds), pipes.quote(mongo_path), host_port)
+    cmds = f"cd {pipes.quote(work_dir)}; echo {pipes.quote(mongo_cmds)} | {pipes.quote(mongo_path)} {host_port}"
+
     attempt_num = 0
     while True:
         ret, output = execute_cmd(cmds, use_file=True)
@@ -1308,9 +1305,7 @@ def get_remote_python():
     """Return remote python."""
 
     python_bin_dir = "Scripts" if _IS_WINDOWS else "bin"
-    remote_python = f". {powercycle_constants.VIRTUALENV_DIR}/{python_bin_dir}/activate; python -u"
-
-    return remote_python
+    return f". {powercycle_constants.VIRTUALENV_DIR}/{python_bin_dir}/activate; python -u"
 
 
 def main(parser_actions, options):  # pylint: disable=too-many-branches,too-many-locals,too-many-statements

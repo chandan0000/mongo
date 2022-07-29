@@ -163,7 +163,7 @@ def main():
     jobs = determine_jobs(options.task, options.variant, options.distro, options.jobs_max,
                           options.jobs_factor)
     if jobs < CPU_COUNT:
-        print("Reducing number of jobs to run from {} to {}".format(CPU_COUNT, jobs))
+        print(f"Reducing number of jobs to run from {CPU_COUNT} to {jobs}")
     output_jobs(jobs, options.outfile)
 
 

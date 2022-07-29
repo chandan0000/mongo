@@ -59,7 +59,4 @@ class BisectPlugin(PluginInterface):
         :param kwargs: additional args
         :return: None or a Subcommand
         """
-        if subcommand != _COMMAND:
-            return None
-
-        return Bisect(parsed_args)
+        return None if subcommand != _COMMAND else Bisect(parsed_args)

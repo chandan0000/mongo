@@ -186,9 +186,9 @@ def get_new_commands(
         ctxt: IDLCompatibilityContext, new_idl_dir: str, import_directories: List[str]
 ) -> Tuple[Dict[str, syntax.Command], Dict[str, syntax.IDLParsedSpec], Dict[str, str]]:
     """Get new IDL commands and check validity."""
-    new_commands: Dict[str, syntax.Command] = dict()
-    new_command_file: Dict[str, syntax.IDLParsedSpec] = dict()
-    new_command_file_path: Dict[str, str] = dict()
+    new_commands: Dict[str, syntax.Command] = {}
+    new_command_file: Dict[str, syntax.IDLParsedSpec] = {}
+    new_command_file_path: Dict[str, str] = {}
 
     for dirpath, _, filenames in os.walk(new_idl_dir):
         for new_filename in filenames:
@@ -291,9 +291,9 @@ def check_reply_field_type_recursive(ctxt: IDLCompatibilityContext,
                                                 new_field.idl_file_path)
         return
 
-    allow_name: str = cmd_name + "-reply-" + field_name
-
     if "any" in old_field_type.bson_serialization_type:
+        allow_name: str = f"{cmd_name}-reply-{field_name}"
+
         # If 'any' is not explicitly allowed as the bson_serialization_type.
         if allow_name not in ALLOW_ANY_TYPE_LIST:
             ctxt.add_reply_field_bson_any_not_allowed_error(
@@ -407,11 +407,10 @@ def check_reply_field_type(ctxt: IDLCompatibilityContext, field_pair: FieldCompa
         if isinstance(new_field_type, syntax.Struct):
             check_reply_fields(ctxt, old_field_type, new_field_type, cmd_name, old_field.idl_file,
                                new_field.idl_file, old_field.idl_file_path, new_field.idl_file_path)
-        else:
-            if not old_field.unstable:
-                ctxt.add_new_reply_field_type_not_struct_error(
-                    cmd_name, field_name, new_field_type.name, old_field_type.name,
-                    new_field.idl_file_path)
+        elif not old_field.unstable:
+            ctxt.add_new_reply_field_type_not_struct_error(
+                cmd_name, field_name, new_field_type.name, old_field_type.name,
+                new_field.idl_file_path)
 
 
 def check_array_type(ctxt: IDLCompatibilityContext, symbol: str,
@@ -496,21 +495,22 @@ def check_reply_fields(ctxt: IDLCompatibilityContext, old_reply: syntax.Struct,
 
     # Check that newly added fields do not have an unallowed use of 'any' as the bson_serialization_type.
     for new_field in new_reply.fields or []:
-        newly_added = True
-        for old_field in old_reply.fields or []:
-            if new_field.name == old_field.name:
-                newly_added = False
+        newly_added = all(
+            new_field.name != old_field.name
+            for old_field in old_reply.fields or []
+        )
 
         if newly_added:
-            allow_name: str = cmd_name + "-reply-" + new_field.name
+            allow_name: str = f"{cmd_name}-reply-{new_field.name}"
 
             new_field_type = get_field_type(new_field, new_idl_file, new_idl_file_path)
-            if isinstance(new_field_type,
-                          syntax.Type) and "any" in new_field_type.bson_serialization_type:
-                # If 'any' is not explicitly allowed as the bson_serialization_type.
-                if allow_name not in ALLOW_ANY_TYPE_LIST:
-                    ctxt.add_reply_field_bson_any_not_allowed_error(
-                        cmd_name, new_field.name, new_field_type.name, new_idl_file_path)
+            if (
+                isinstance(new_field_type, syntax.Type)
+                and "any" in new_field_type.bson_serialization_type
+                and allow_name not in ALLOW_ANY_TYPE_LIST
+            ):
+                ctxt.add_reply_field_bson_any_not_allowed_error(
+                    cmd_name, new_field.name, new_field_type.name, new_idl_file_path)
 
 
 def check_param_or_command_type_recursive(ctxt: IDLCompatibilityContext,
@@ -555,9 +555,14 @@ def check_param_or_command_type_recursive(ctxt: IDLCompatibilityContext,
             cmd_name, new_type.name, new_field.idl_file_path, param_name, is_command_parameter)
         return
 
-    allow_name: str = cmd_name + "-param-" + param_name if is_command_parameter else cmd_name
-
     if "any" in old_type.bson_serialization_type:
+        allow_name: str = (
+            f"{cmd_name}-param-{param_name}"
+            if is_command_parameter
+            else cmd_name
+        )
+
+
         # If 'any' is not explicitly allowed as the bson_serialization_type.
         if allow_name not in ALLOW_ANY_TYPE_LIST:
             ctxt.add_command_or_param_type_bson_any_not_allowed_error(
@@ -580,12 +585,7 @@ def check_param_or_command_type_recursive(ctxt: IDLCompatibilityContext,
                 cmd_name, new_type.name, new_field.idl_file_path, param_name, is_command_parameter)
 
     if isinstance(old_type, syntax.VariantType):
-        if not isinstance(new_type, syntax.VariantType):
-            if not old_field.unstable:
-                ctxt.add_new_command_or_param_type_not_variant_type_error(
-                    cmd_name, new_type.name, new_field.idl_file_path, param_name,
-                    is_command_parameter)
-        else:
+        if isinstance(new_type, syntax.VariantType):
             new_variant_types = new_type.variant_types
             old_variant_types = old_type.variant_types
 
@@ -624,6 +624,10 @@ def check_param_or_command_type_recursive(ctxt: IDLCompatibilityContext,
                         cmd_name, old_type.variant_struct_type.name, new_field.idl_file_path,
                         param_name, is_command_parameter)
 
+        elif not old_field.unstable:
+            ctxt.add_new_command_or_param_type_not_variant_type_error(
+                cmd_name, new_type.name, new_field.idl_file_path, param_name,
+                is_command_parameter)
     elif not old_field.unstable:
         check_superset(ctxt, cmd_name, new_type.name, new_type.bson_serialization_type,
                        old_type.bson_serialization_type, new_field.idl_file_path, param_name,
@@ -664,7 +668,6 @@ def check_param_or_command_type(ctxt: IDLCompatibilityContext, field_pair: Field
     if isinstance(old_type, syntax.Type):
         check_param_or_command_type_recursive(ctxt, field_pair, is_command_parameter)
 
-    # Only add type errors if the old field is stable.
     elif isinstance(old_type, syntax.Enum) and not old_field.unstable:
         if isinstance(new_type, syntax.Enum):
             check_superset(ctxt, field_pair.cmd_name, new_type.name, new_type.values,
@@ -681,11 +684,10 @@ def check_param_or_command_type(ctxt: IDLCompatibilityContext, field_pair: Field
                 ctxt, old_type, new_type, field_pair.cmd_name, old_field.idl_file,
                 new_field.idl_file, old_field.idl_file_path, new_field.idl_file_path,
                 is_command_parameter)
-        else:
-            if not old_field.unstable:
-                ctxt.add_new_command_or_param_type_not_struct_error(
-                    field_pair.cmd_name, new_type.name, old_type.name, new_field.idl_file_path,
-                    field_pair.field_name, is_command_parameter)
+        elif not old_field.unstable:
+            ctxt.add_new_command_or_param_type_not_struct_error(
+                field_pair.cmd_name, new_type.name, old_type.name, new_field.idl_file_path,
+                field_pair.field_name, is_command_parameter)
 
 
 def check_param_or_type_validator(ctxt: IDLCompatibilityContext, old_field: syntax.Field,
@@ -732,10 +734,10 @@ def check_command_params_or_type_struct_fields(
     # Check if a new field has been added to the parameters or type struct.
     # If so, it must be optional.
     for new_field in new_struct.fields or []:
-        newly_added = True
-        for old_field in old_struct.fields or []:
-            if new_field.name == old_field.name:
-                newly_added = False
+        newly_added = all(
+            new_field.name != old_field.name
+            for old_field in old_struct.fields or []
+        )
 
         if newly_added and not new_field.optional and not new_field.unstable:
             ctxt.add_new_param_or_command_type_field_added_required_error(
@@ -743,15 +745,21 @@ def check_command_params_or_type_struct_fields(
 
         # Check that a new field does not have an unallowed use of 'any' as the bson_serialization_type.
         if newly_added:
-            allow_name: str = cmd_name + "-param-" + new_field.name if is_command_parameter else cmd_name
+            allow_name: str = (
+                f"{cmd_name}-param-{new_field.name}"
+                if is_command_parameter
+                else cmd_name
+            )
+
             new_field_type = get_field_type(new_field, new_idl_file, new_idl_file_path)
-            if isinstance(new_field_type,
-                          syntax.Type) and "any" in new_field_type.bson_serialization_type:
-                # If 'any' is not explicitly allowed as the bson_serialization_type.
-                if allow_name not in ALLOW_ANY_TYPE_LIST:
-                    ctxt.add_command_or_param_type_bson_any_not_allowed_error(
-                        cmd_name, new_field_type.name, old_idl_file_path, new_field.name,
-                        is_command_parameter)
+            if (
+                isinstance(new_field_type, syntax.Type)
+                and "any" in new_field_type.bson_serialization_type
+                and allow_name not in ALLOW_ANY_TYPE_LIST
+            ):
+                ctxt.add_command_or_param_type_bson_any_not_allowed_error(
+                    cmd_name, new_field_type.name, old_idl_file_path, new_field.name,
+                    is_command_parameter)
 
 
 def check_command_param_or_type_struct_field(
@@ -943,7 +951,7 @@ def check_security_access_checks(ctxt: IDLCompatibilityContext,
 
     elif new_access_checks is None and old_access_checks is not None:
         ctxt.add_removed_access_check_field_error(cmd_name, new_idl_file_path)
-    elif old_access_checks is None and new_access_checks is not None and cmd.api_version == '1':
+    elif new_access_checks is not None and cmd.api_version == '1':
         ctxt.add_added_access_check_field_error(cmd_name, new_idl_file_path)
 
 
@@ -959,7 +967,7 @@ def check_compatibility(old_idl_dir: str, new_idl_dir: str,
     # Check new commands' compatibility with old ones.
     # Note, a command can be added to V1 at any time, it's ok if a
     # new command has no corresponding old command.
-    old_commands: Dict[str, syntax.Command] = dict()
+    old_commands: Dict[str, syntax.Command] = {}
     for dirpath, _, filenames in os.walk(old_idl_dir):
         for old_filename in filenames:
             if not old_filename.endswith('.idl') or old_filename in SKIPPED_FILES:

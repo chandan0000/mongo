@@ -43,11 +43,11 @@ def main():
                 merged = {**thread_record, **prologue}
 
                 output_fn = None
-                if options.output_format == 'json':
-                    output_fn = json.dump
                 if options.output_format == 'classic':
                     output_fn = mongosymb.classic_output
 
+                elif options.output_format == 'json':
+                    output_fn = json.dump
                 resolver = None
                 if options.debug_file_resolver == 'path':
                     resolver = mongosymb.PathDbgFileResolver(options.path_to_executable)
@@ -62,7 +62,7 @@ def main():
                 output_fn(frames, sys.stdout, indent=2)
 
         except json.JSONDecodeError:
-            print("failed to parse line: `{}`".format(line), file=sys.stderr)
+            print(f"failed to parse line: `{line}`", file=sys.stderr)
 
 
 if __name__ == '__main__':

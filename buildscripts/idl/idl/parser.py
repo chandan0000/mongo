@@ -144,18 +144,14 @@ def _generic_parser(
 
     # Check for any missing required fields
     for name, rule_desc in list(mapping_rules.items()):
-        if not rule_desc.required == _RuleDesc.REQUIRED:
+        if rule_desc.required != _RuleDesc.REQUIRED:
             continue
 
-        # A bool is never "None" like other types, it simply defaults to "false".
-        # It means "if bool is None" will always return false and there is no support for required
-        # 'bool' at this time.
-        if not rule_desc.node_type == 'bool_scalar':
-            if syntax_node.__dict__[name] is None:
-                ctxt.add_missing_required_field_error(node, syntax_node_name, name)
-        else:
+        if rule_desc.node_type == 'bool_scalar':
             raise errors.IDLError(
                 "Unknown node_type '%s' for parser required rule" % (rule_desc.node_type))
+        if syntax_node.__dict__[name] is None:
+            ctxt.add_missing_required_field_error(node, syntax_node_name, name)
 
 
 def _parse_mapping(
@@ -401,8 +397,7 @@ def _parse_fields(ctxt, node):
             field.name = first_name
             single_type = syntax.FieldTypeSingle(ctxt.file_name, node.start_mark.line,
                                                  node.start_mark.column)
-            array_type_name = syntax.parse_array_type(second_node.value)
-            if array_type_name:
+            if array_type_name := syntax.parse_array_type(second_node.value):
                 single_type.type_name = array_type_name
                 array_type = syntax.FieldTypeArray(single_type)
                 field.type = array_type
@@ -452,11 +447,9 @@ def _parse_chained_types(ctxt, node):
             chain = syntax.ChainedType(ctxt.file_name, node.start_mark.line, node.start_mark.column)
             chain.name = first_name
             chain.cpp_name = second_node.value
-            chained_items.append(chain)
         else:
             chain = _parse_chained_type(ctxt, first_name, second_node)
-            chained_items.append(chain)
-
+        chained_items.append(chain)
         field_name_set.add(first_name)
 
     return chained_items
@@ -496,11 +489,9 @@ def _parse_chained_structs(ctxt, node):
                                          node.start_mark.column)
             chain.name = first_name
             chain.cpp_name = second_node.value
-            chained_items.append(chain)
         else:
             chain = _parse_chained_struct(ctxt, first_name, second_node)
-            chained_items.append(chain)
-
+        chained_items.append(chain)
         field_name_set.add(first_name)
 
     return chained_items
@@ -952,7 +943,7 @@ def _prefix_with_namespace(cpp_namespace, cpp_name):
     if "::" in cpp_name or cpp_types.is_primitive_scalar_type(cpp_name):
         return cpp_name
 
-    return cpp_namespace + "::" + cpp_name
+    return f"{cpp_namespace}::{cpp_name}"
 
 
 def _propagate_globals(spec):
@@ -997,7 +988,7 @@ def _parse(stream, error_file_name):
     if not root_node:
         return syntax.IDLParsedSpec(spec, None)
 
-    if not root_node.id == "mapping":
+    if root_node.id != "mapping":
         raise errors.IDLError(
             "Expected a YAML mapping node as root node of IDL document, got '%s' instead" %
             root_node.id)

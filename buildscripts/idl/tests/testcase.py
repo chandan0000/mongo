@@ -42,9 +42,7 @@ else:
 def errors_to_str(errors):
     # type: (idl.errors.ParserErrorCollection) -> str
     """Dump the list of errors as a multiline text string."""
-    if errors is not None:
-        return "\n".join(errors.to_list())
-    return "<empty>"
+    return "\n".join(errors.to_list()) if errors is not None else "<empty>"
 
 
 class NothingImportResolver(idl.parser.ImportResolverBase):

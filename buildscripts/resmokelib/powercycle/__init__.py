@@ -103,7 +103,7 @@ class PowercyclePlugin(PluginInterface):
         # Only need to return run_parser for further processing; others don't need additional args.
         return run_parser
 
-    def add_subcommand(self, subparsers):  # pylint: disable=too-many-statements
+    def add_subcommand(self, subparsers):    # pylint: disable=too-many-statements
         """Create and add the parser for the subcommand."""
         intermediate_parser = subparsers.add_parser(
             SUBCOMMAND, help=__doc__, usage="""
@@ -145,10 +145,12 @@ MongoDB Powercycle Tests. To run a powercycle test locally, use the following st
                                   required=True)
 
         test_options.add_argument(
-            "--sshConnection", dest="ssh_connection_options",
-            help="Remote server ssh additional connection options, i.e., '-i ident.pem'"
-            " which are added to '{}'".format(powercycle_constants.DEFAULT_SSH_CONNECTION_OPTIONS),
-            default=None)
+            "--sshConnection",
+            dest="ssh_connection_options",
+            help=f"Remote server ssh additional connection options, i.e., '-i ident.pem' which are added to '{powercycle_constants.DEFAULT_SSH_CONNECTION_OPTIONS}'",
+            default=None,
+        )
+
 
         test_options.add_argument(
             "--taskName", dest="task_name",
@@ -179,9 +181,13 @@ MongoDB Powercycle Tests. To run a powercycle test locally, use the following st
         # Program options
         log_levels = ["debug", "info", "warning", "error"]
         program_options.add_argument(
-            "--logLevel", dest="log_level", choices=log_levels,
-            help="The log level. Accepted values are: {}."
-            " [default: '%(default)s'].".format(log_levels), default="info")
+            "--logLevel",
+            dest="log_level",
+            choices=log_levels,
+            help=f"The log level. Accepted values are: {log_levels}. [default: '%(default)s'].",
+            default="info",
+        )
+
 
         program_options.add_argument(
             "--logFile", dest="log_file",

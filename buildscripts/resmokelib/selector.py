@@ -92,9 +92,10 @@ class TestFileExplorer(object):
         returncode, stdout, stderr = self._run_program(dbtest_binary, ["--list"])
 
         if returncode != 0:
-            raise errors.ResmokeError("Getting list of dbtest suites failed"
-                                      ", dbtest_binary=`{}`: stdout=`{}`, stderr=`{}`".format(
-                                          dbtest_binary, stdout, stderr))
+            raise errors.ResmokeError(
+                f"Getting list of dbtest suites failed, dbtest_binary=`{dbtest_binary}`: stdout=`{stdout}`, stderr=`{stderr}`"
+            )
+
         return stdout.splitlines()
 
     @staticmethod
@@ -164,10 +165,10 @@ class _TestList(object):
         for test in tests:
             if self._test_file_explorer.is_glob_pattern(test):
                 expanded_tests.extend(self._test_file_explorer.iglob(test))
-            else:
-                if not self._test_file_explorer.isfile(test):
-                    raise ValueError("Unrecognized test file: {}".format(test))
+            elif self._test_file_explorer.isfile(test):
                 expanded_tests.append(os.path.normpath(test))
+            else:
+                raise ValueError(f"Unrecognized test file: {test}")
         return expanded_tests
 
     def include_files(self, include_files, force=False):
@@ -190,7 +191,7 @@ class _TestList(object):
         if force:
             self._filtered |= set(self._roots) & expanded_include_files
 
-    def exclude_files(self, exclude_files):  # noqa: D406,D407,D411,D413
+    def exclude_files(self, exclude_files):    # noqa: D406,D407,D411,D413
         """Exclude from the test list the files that match elements from 'exclude_files'.
 
         Args:
@@ -210,9 +211,9 @@ class _TestList(object):
                 path = os.path.normpath(path)
                 if path not in self._roots:
                     raise ValueError(
-                        ("Excluded test file {} does not exist, perhaps it was renamed or removed"
-                         " , and should be modified in, or removed from, the exclude_files list.".
-                         format(path)))
+                        f"Excluded test file {path} does not exist, perhaps it was renamed or removed , and should be modified in, or removed from, the exclude_files list."
+                    )
+
                 self._filtered.discard(path)
 
     def match_tag_expression(self, tag_expression, get_tags):
@@ -324,7 +325,7 @@ def make_expression(conf):
             return _AnyOfExpression(_make_expression_list(value))
         elif key == "$not":
             return _NotExpression(make_expression(value))
-    raise ValueError("Invalid tag matching expression: {}".format(conf))
+    raise ValueError(f"Invalid tag matching expression: {conf}")
 
 
 def _make_expression_list(configs):
@@ -409,9 +410,7 @@ class _SelectorConfig(object):
             exclude_with_any_expr = make_expression({"$not": {"$anyOf": exclude_with_any_tags}})
             expressions.append(exclude_with_any_expr)
 
-        if expressions:
-            return _AllOfExpression(expressions)
-        return None
+        return _AllOfExpression(expressions) if expressions else None
 
 
 class _Selector(object):
@@ -631,11 +630,11 @@ class _DbTestSelector(_Selector):
         """Return selected tests."""
         if selector_config.roots:
             roots = selector_config.roots
-        else:
-            if not self._test_file_explorer.isfile(selector_config.binary):
-                raise IOError(errno.ENOENT, "File not found", selector_config.binary)
+        elif self._test_file_explorer.isfile(selector_config.binary):
             roots = self._test_file_explorer.list_dbtests(selector_config.binary)
 
+        else:
+            raise IOError(errno.ENOENT, "File not found", selector_config.binary)
         if config.INCLUDE_WITH_ANY_TAGS:
             # The db_tests do not currently support tags so we always return an empty array when the
             # --includeWithAnyTags option is used.
@@ -743,7 +742,7 @@ def filter_tests(test_kind, selector_config, test_file_explorer=_DEFAULT_TEST_FI
         the default one should not be needed except for mocking purposes.
     """
     if test_kind not in _SELECTOR_REGISTRY:
-        raise ValueError("Unknown test kind '{}'".format(test_kind))
+        raise ValueError(f"Unknown test kind '{test_kind}'")
     selector_config_class, selector_class = _SELECTOR_REGISTRY[test_kind]
     selector = selector_class(test_file_explorer)
     selector_config = selector_config_class(**selector_config)

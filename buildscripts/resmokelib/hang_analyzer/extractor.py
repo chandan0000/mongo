@@ -51,6 +51,9 @@ def _get_symbol_files():
     for ext in ['debug', 'dSYM', 'pdb']:
         for file in _DEBUG_FILE_BASE_NAMES:
             haystack = build_hygienic_bin_path(child='{file}.{ext}'.format(file=file, ext=ext))
-            for needle in glob.glob(haystack):
-                out.append((needle, os.path.join(os.getcwd(), os.path.basename(needle))))
+            out.extend(
+                (needle, os.path.join(os.getcwd(), os.path.basename(needle)))
+                for needle in glob.glob(haystack)
+            )
+
     return out

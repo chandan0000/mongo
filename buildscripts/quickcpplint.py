@@ -22,11 +22,13 @@ FILES_RE = re.compile('\\.(h|cpp)$')
 
 def is_interesting_file(file_name: str) -> bool:
     """Return true if this file should be checked."""
-    return (file_name.startswith("jstests")
-            or file_name.startswith("src") and not file_name.startswith("src/third_party/")
-            and not file_name.startswith("src/mongo/gotools/")
-            # TODO SERVER-49805: These files should be generated at compile time.
-            and not file_name == "src/mongo/db/cst/parser_gen.cpp") and FILES_RE.search(file_name)
+    return (
+        file_name.startswith("jstests")
+        or file_name.startswith("src")
+        and not file_name.startswith("src/third_party/")
+        and not file_name.startswith("src/mongo/gotools/")
+        and file_name != "src/mongo/db/cst/parser_gen.cpp"
+    ) and FILES_RE.search(file_name)
 
 
 def _lint_files(file_names: List[str]) -> None:
@@ -39,10 +41,9 @@ def _lint_files(file_names: List[str]) -> None:
 
 def lint_patch(file_name: str) -> None:
     """Lint patch command entry point."""
-    file_names = git.get_files_to_check_from_patch(file_name, is_interesting_file)
-
-    # Patch may have files that we do not want to check which is fine
-    if file_names:
+    if file_names := git.get_files_to_check_from_patch(
+        file_name, is_interesting_file
+    ):
         _lint_files(file_names)
 
 

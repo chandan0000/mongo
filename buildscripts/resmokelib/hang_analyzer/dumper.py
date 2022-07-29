@@ -28,7 +28,7 @@ def get_dumpers(root_logger: logging.Logger, dbg_output: str):
     if sys.platform.startswith("linux"):
         dbg = GDBDumper(root_logger, dbg_output)
         jstack = JstackDumper()
-    elif sys.platform == "win32" or sys.platform == "cygwin":
+    elif sys.platform in ["win32", "cygwin"]:
         dbg = WindowsDumper(root_logger, dbg_output)
         jstack = JstackWindowsDumper()
     elif sys.platform == "darwin":
@@ -118,9 +118,12 @@ class WindowsDumper(Dumper):
 
         # Construct the debugger search paths in most-recent order
         debugger_paths = [os.path.join(root_dir, "Windows Kits", "10", "Debuggers", "x64")]
-        for idx in reversed(range(0, 2)):
-            debugger_paths.append(
-                os.path.join(root_dir, "Windows Kits", "8." + str(idx), "Debuggers", "x64"))
+        debugger_paths.extend(
+            os.path.join(
+                root_dir, "Windows Kits", f"8.{str(idx)}", "Debuggers", "x64"
+            )
+            for idx in reversed(range(2))
+        )
 
         for dbg_path in debugger_paths:
             self._root_logger.info("Checking for debugger in %s", dbg_path)
@@ -131,14 +134,12 @@ class WindowsDumper(Dumper):
 
     def _prefix(self):
         """Return the commands to set up a debugger process."""
-        cmds = [
+        return [
             ".symfix",  # Fixup symbol path
             "!sym noisy",  # Enable noisy symbol loading
             ".symopt +0x10",  # Enable line loading (off by default in CDB, on by default in WinDBG)
             ".reload",  # Reload symbols
         ]
-
-        return cmds
 
     def _process_specific(self, pinfo, take_dump, logger=None):
         """Return the commands that attach to each process, dump info and detach."""
@@ -148,15 +149,16 @@ class WindowsDumper(Dumper):
             # Dump to file, dump_<process name>.<pid>.mdmp
             dump_file = "dump_%s.%d.%s" % (os.path.splitext(pinfo.name)[0], pinfo.pidv,
                                            self.get_dump_ext())
-            dump_command = ".dump /ma %s" % dump_file
+            dump_command = f".dump /ma {dump_file}"
             self._root_logger.info("Dumping core to %s", dump_file)
 
-            cmds = [
+            return [
                 dump_command,
                 ".detach",  # Detach
             ]
+
         else:
-            cmds = [
+            return [
                 "!peb",  # Dump current exe, & environment variables
                 "lm",  # Dump loaded modules
                 "!uniqstack -pn",  # Dump All unique Threads with function arguments
@@ -164,15 +166,9 @@ class WindowsDumper(Dumper):
                 ".detach",  # Detach
             ]
 
-        return cmds
-
     def _postfix(self):
         """Return the commands to exit the debugger."""
-        cmds = [
-            "q"  # Quit
-        ]
-
-        return cmds
+        return ["q"]  # Quit
 
     def dump_info(  # pylint: disable=too-many-arguments
             self, pinfo, take_dump):
@@ -225,7 +221,7 @@ class LLDBDumper(Dumper):
             for pid in pinfo.pidv:
                 # Dump to file, dump_<process name>.<pid>.core
                 dump_file = dump_files[pid]
-                dump_command = "process save-core %s" % dump_file
+                dump_command = f"process save-core {dump_file}"
                 self._root_logger.info("Dumping core to %s", dump_file)
 
                 cmds += [
@@ -250,12 +246,10 @@ class LLDBDumper(Dumper):
 
     def _postfix(self):
         """Return the commands to exit the debugger."""
-        cmds = [
+        return [
             "settings set interpreter.prompt-on-quit false",
             "quit",
         ]
-
-        return cmds
 
     def dump_info(self, pinfo, take_dump):
         """Dump info."""
@@ -307,12 +301,10 @@ class LLDBDumper(Dumper):
                                str(pinfo.pidv))
 
         if take_dump:
-            need_sigabrt = {}
             files = self._dump_files(pinfo)
-            for pid in files:
-                if not os.path.exists(files[pid]):
-                    need_sigabrt[pid] = files[pid]
-            if need_sigabrt:
+            if need_sigabrt := {
+                pid: files[pid] for pid in files if not os.path.exists(files[pid])
+            }:
                 raise DumpError(need_sigabrt)
 
     def get_dump_ext(self):
@@ -321,10 +313,10 @@ class LLDBDumper(Dumper):
 
     def _dump_files(self, pinfo):
         """Return a dict mapping pids to core dump filenames that this dumper can create."""
-        files = {}
-        for pid in pinfo.pidv:
-            files[pid] = "dump_%s.%d.%s" % (pinfo.name, pid, self.get_dump_ext())
-        return files
+        return {
+            pid: "dump_%s.%d.%s" % (pinfo.name, pid, self.get_dump_ext())
+            for pid in pinfo.pidv
+        }
 
 
 # GDB dumper is for Linux
@@ -343,11 +335,11 @@ class GDBDumper(Dumper):
         mongo_printers_script = os.path.join(gdb_dir, "mongo_printers.py")
         mongo_lock_script = os.path.join(gdb_dir, "mongo_lock.py")
 
-        source_mongo = "source %s" % mongo_script
-        source_mongo_printers = "source %s" % mongo_printers_script
-        source_mongo_lock = "source %s" % mongo_lock_script
+        source_mongo = f"source {mongo_script}"
+        source_mongo_printers = f"source {mongo_printers_script}"
+        source_mongo_lock = f"source {mongo_lock_script}"
 
-        cmds = [
+        return [
             "set interactive-mode off",
             "set print thread-events off",  # Suppress GDB messages of threads starting/finishing.
             "set python print-stack full",
@@ -355,7 +347,6 @@ class GDBDumper(Dumper):
             source_mongo_printers,
             source_mongo_lock,
         ]
-        return cmds
 
     def _process_specific(  # pylint: disable=too-many-locals
             self, pinfo, take_dump, logger=None):
@@ -366,7 +357,7 @@ class GDBDumper(Dumper):
             for pid in pinfo.pidv:
                 # Dump to file, dump_<process name>.<pid>.core
                 dump_file = "dump_%s.%d.%s" % (pinfo.name, pid, self.get_dump_ext())
-                dump_command = "gcore %s" % dump_file
+                dump_command = f"gcore {dump_file}"
                 self._root_logger.info("Dumping core to %s", dump_file)
                 cmds += [
                     "attach %d" % pid,
@@ -398,15 +389,16 @@ class GDBDumper(Dumper):
                     set_logging_off_commands = ['set logging off']
                     raw_stacks_filename = "%s_%d_raw_stacks%s" % (base, pid, ext)
                     raw_stacks_commands = [
-                        'echo \\nWriting raw stacks to %s.\\n' % raw_stacks_filename,
-                        # This sends output to log file rather than stdout until we turn logging off.
+                        'echo \\nWriting raw stacks to %s.\\n'
+                        % raw_stacks_filename,
                         'set logging redirect on',
-                        'set logging file ' + raw_stacks_filename,
+                        f'set logging file {raw_stacks_filename}',
                         'set logging on',
                         'thread apply all bt',
                         'set logging off',
                         'set logging redirect off',
                     ]
+
 
                 mongodb_waitsfor_graph = "mongodb-waitsfor-graph debugger_waitsfor_%s_%d.gv" % \
                     (pinfo.name, pid)
@@ -434,8 +426,7 @@ class GDBDumper(Dumper):
 
     def _postfix(self):
         """Return the commands to exit the debugger."""
-        cmds = ["set confirm off", "quit"]
-        return cmds
+        return ["set confirm off", "quit"]
 
     def dump_info(self, pinfo, take_dump):
         """Dump info."""
@@ -469,10 +460,7 @@ class GDBDumper(Dumper):
     def _find_gcore():
         """Find the installed gcore."""
         dbg = "/usr/bin/gcore"
-        if os.path.exists(dbg):
-            return dbg
-
-        return None
+        return dbg if os.path.exists(dbg) else None
 
 
 # jstack is a JDK utility
@@ -526,7 +514,7 @@ def _get_process_logger(dbg_output, pname: str, pid: int = None):
         if pid:
             filename = "debugger_%s_%d.log" % (os.path.splitext(pname)[0], pid)
         else:
-            filename = "debugger_%s.log" % (os.path.splitext(pname)[0])
+            filename = f"debugger_{os.path.splitext(pname)[0]}.log"
         process_logger.mongo_process_filename = filename
         f_handler = logging.FileHandler(filename=filename, mode="w")
         f_handler.setFormatter(logging.Formatter(fmt="%(message)s"))

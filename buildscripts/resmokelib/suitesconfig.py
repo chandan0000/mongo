@@ -62,9 +62,11 @@ def create_test_membership_map(fail_on_missing_selector=False, test_kind=None):
             # section. Certain test suites (e.g. unittests.yml) have a dedicated text file to
             # capture the list of tests they run; the text file may not be available if the
             # associated SCons target hasn't been built yet.
-            if err.filename in _config.EXTERNAL_SUITE_SELECTORS:
-                if not fail_on_missing_selector:
-                    continue
+            if (
+                err.filename in _config.EXTERNAL_SUITE_SELECTORS
+                and not fail_on_missing_selector
+            ):
+                continue
             raise
 
         for testfile in suite.tests:

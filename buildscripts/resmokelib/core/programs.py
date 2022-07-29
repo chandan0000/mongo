@@ -308,12 +308,12 @@ def _format_shell_vars(sb, paths, value):
 
     # Only need to do special handling for JSON objects.
     if not isinstance(value, (dict, HistoryDict)):
-        sb.append("%s = %s" % (bracketize(paths), json.dumps(value)))
+        sb.append(f"{bracketize(paths)} = {json.dumps(value)}")
         return
 
     # Avoid including curly braces and colons in output so that the command invocation can be
     # copied and run through bash.
-    sb.append("%s = new Object()" % bracketize(paths))
+    sb.append(f"{bracketize(paths)} = new Object()")
     for subkey in value:
         _format_shell_vars(sb, paths + [subkey], value[subkey])
 
@@ -378,7 +378,7 @@ def _apply_set_parameters(args, set_parameter):
         if isinstance(param_value, bool):
             param_value = "true" if param_value else "false"
         args.append("--setParameter")
-        args.append("%s=%s" % (param_name, param_value))
+        args.append(f"{param_name}={param_value}")
 
 
 def _apply_kwargs(args, kwargs):
@@ -389,11 +389,10 @@ def _apply_kwargs(args, kwargs):
     """
 
     for arg_name in kwargs:
-        arg_value = str(kwargs[arg_name])
-        if arg_value:
-            args.append("--%s=%s" % (arg_name, arg_value))
+        if arg_value := str(kwargs[arg_name]):
+            args.append(f"--{arg_name}={arg_value}")
         else:
-            args.append("--%s" % (arg_name))
+            args.append(f"--{arg_name}")
 
 
 def _set_keyfile_permissions(opts):

@@ -83,11 +83,9 @@ def execute_and_read_stdout(cmd, cwd, env):
 
     popen = subprocess.Popen(cmd, stdout=subprocess.PIPE, cwd=str(cwd), env=env,
                              universal_newlines=True)
-    for stdout_line in iter(popen.stdout.readline, ""):
-        yield stdout_line
+    yield from iter(popen.stdout.readline, "")
     popen.stdout.close()
-    return_code = popen.wait()
-    if return_code:
+    if return_code := popen.wait():
         raise subprocess.CalledProcessError(return_code, cmd)
 
 
@@ -181,11 +179,7 @@ def main():
 
     frontend_thread = None
     if args.launch in ['frontend', 'both']:
-        if args.debug:
-            npm_command = npm_start
-        else:
-            npm_command = npm_build
-
+        npm_command = npm_start if args.debug else npm_build
         frontend_thread = threading.Thread(target=start_frontend_thread,
                                            args=(web_service_info, npm_command, args.debug))
         frontend_thread.start()

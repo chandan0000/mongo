@@ -51,7 +51,10 @@ def register(logger, suites, start_time):
                     logger.error("_handle_set_event WaitForSingleObject failed: %d" % ret)
                     return
             except win32event.error as err:
-                logger.error("Exception from win32event.WaitForSingleObject with error: %s" % err)
+                logger.error(
+                    f"Exception from win32event.WaitForSingleObject with error: {err}"
+                )
+
             else:
                 header_msg = "Dumping stacks due to signal from win32event.SetEvent"
 
@@ -86,7 +89,7 @@ def register(logger, suites, start_time):
             task_timeout_handle = win32event.CreateEvent(security_attributes, manual_reset,
                                                          initial_state, event_name)
         except win32event.error as err:
-            logger.error("Exception from win32event.CreateEvent with error: %s" % err)
+            logger.error(f"Exception from win32event.CreateEvent with error: {err}")
             return
 
         # Register to close event object handle on exit.
@@ -106,13 +109,9 @@ def register(logger, suites, start_time):
 def _dump_stacks(logger, header_msg):
     """Signal handler that will dump the stacks of all threads."""
 
-    sb = []
-    sb.append(header_msg)
-
+    sb = [header_msg]
     frames = sys._current_frames()  # pylint: disable=protected-access
-    sb.append("Total threads: %d" % (len(frames)))
-    sb.append("")
-
+    sb.extend(("Total threads: %d" % (len(frames)), ""))
     for thread_id in frames:
         stack = frames[thread_id]
         sb.append("Thread %d:" % (thread_id))
@@ -123,15 +122,12 @@ def _dump_stacks(logger, header_msg):
 
 def _get_pids():
     """Return all PIDs spawned by the current resmoke process and their child PIDs."""
-    pids = []  # Gather fixture PIDs + any PIDs spawned by the fixtures.
     parent = psutil.Process()  # current process
-    for child in parent.children(recursive=True):
-        # Don't signal python threads. They have already been signalled in the evergreen timeout
-        # section.
-        if 'python' not in child.name().lower():
-            pids.append(child.pid)
-
-    return pids
+    return [
+        child.pid
+        for child in parent.children(recursive=True)
+        if 'python' not in child.name().lower()
+    ]
 
 
 def _analyze_pids(logger, pids):

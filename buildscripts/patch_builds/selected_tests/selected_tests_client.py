@@ -125,8 +125,7 @@ class SelectedTestsClient(object):
         :return: Config read from file.
         """
         with open(filename, 'r') as fstream:
-            config = yaml.safe_load(fstream)
-            if config:
+            if config := yaml.safe_load(fstream):
                 return cls(config["url"], config["project"], config["auth_user"],
                            config["auth_token"])
 

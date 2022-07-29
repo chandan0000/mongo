@@ -121,7 +121,7 @@ def _write_dependencies(spec, write_dependencies_inline):
     dependencies = sorted(spec.imports.dependencies)
     for resolved_file_name in dependencies:
         if write_dependencies_inline:
-            resolved_file_name = "import file:" + resolved_file_name
+            resolved_file_name = f"import file:{resolved_file_name}"
 
         print(resolved_file_name)
 
@@ -183,7 +183,7 @@ def compile_idl(args):
         logging.error("File '%s' not found", args.input_file)
 
     if args.output_source is None:
-        if not '.' in args.input_file:
+        if '.' not in args.input_file:
             logging.error("File name '%s' must be end with a filename extension, such as '%s.idl'",
                           args.input_file, args.input_file)
             return False
@@ -191,8 +191,8 @@ def compile_idl(args):
         file_name_prefix = os.path.splitext(args.input_file)[0]
         file_name_prefix += args.output_suffix
 
-        source_file_name = file_name_prefix + ".cpp"
-        header_file_name = file_name_prefix + ".h"
+        source_file_name = f"{file_name_prefix}.cpp"
+        header_file_name = f"{file_name_prefix}.h"
     else:
         source_file_name = args.output_source
         header_file_name = args.output_header
@@ -209,9 +209,9 @@ def compile_idl(args):
             if args.write_dependencies or args.write_dependencies_inline:
                 _write_dependencies(parsed_doc.spec, args.write_dependencies_inline)
 
-                # Stop compiling if we only need to scan import dependencies
-                if args.write_dependencies:
-                    return True
+            # Stop compiling if we only need to scan import dependencies
+            if args.write_dependencies:
+                return True
 
             _update_import_includes(args, parsed_doc.spec, header_file_name)
 

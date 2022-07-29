@@ -58,13 +58,11 @@ def can_validation_be_skipped(evg_config, variant):
     :return: True if validation can be skipped.
     """
     variant_config = evg_config.get_variant(variant)
-    if not variant_config:
-        return True
-
-    if PUSH_TASK_NAME not in variant_config.task_names:
-        return True
-
-    return False
+    return (
+        PUSH_TASK_NAME not in variant_config.task_names
+        if variant_config
+        else True
+    )
 
 
 def read_variable_from_yml(filename, variable_name):
@@ -80,10 +78,9 @@ def read_variable_from_yml(filename, variable_name):
 
     variables = nodes["variables"]
 
-    for var in variables:
-        if variable_name in var:
-            return var[variable_name]
-    return None
+    return next(
+        (var[variable_name] for var in variables if variable_name in var), None
+    )
 
 
 def main():
@@ -109,8 +106,11 @@ def main():
         sys.exit(0)
 
     if args.variant not in expected_variants:
-        print("ERROR: Expected to find variant %s in list %s" % (args.variant, expected_variants),
-              file=sys.stderr)
+        print(
+            f"ERROR: Expected to find variant {args.variant} in list {expected_variants}",
+            file=sys.stderr,
+        )
+
         print(
             "ERROR:  Please add the build variant %s to the %s list in '%s'" %
             (args.variant, MONGOCRYPTD_VARIANTS, args.file), file=sys.stderr)

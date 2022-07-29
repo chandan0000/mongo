@@ -51,11 +51,7 @@ INDENT_SPACE_COUNT = 4
 def fill_spaces(count):
     # type: (int) -> str
     """Fill a string full of spaces."""
-    fill = ''
-    for _ in range(count * INDENT_SPACE_COUNT):
-        fill += ' '
-
-    return fill
+    return ''.join(' ' for _ in range(count * INDENT_SPACE_COUNT))
 
 
 def indent_text(count, unindented_text):

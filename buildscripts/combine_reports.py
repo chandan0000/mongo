@@ -31,10 +31,14 @@ def report_exit(combined_test_report):
     """
 
     ret = 0
-    for test in combined_test_report.test_infos:
-        if test.status in ["fail", "timeout"]:
-            return 31
-    return ret
+    return next(
+        (
+            31
+            for test in combined_test_report.test_infos
+            if test.status in ["fail", "timeout"]
+        ),
+        ret,
+    )
 
 
 def check_error(input_count, output_count):

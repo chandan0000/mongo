@@ -46,10 +46,11 @@ class LinterSplitArgs(argparse.Action):
         """Create a multi choice comma separated list."""
 
         selected_choices = [v.upper() for v in ''.join(values).split(',') if v]
-        invalid_choices = [
-            choice for choice in selected_choices if choice not in self.valid_choices
-        ]
-        if invalid_choices:
+        if invalid_choices := [
+            choice
+            for choice in selected_choices
+            if choice not in self.valid_choices
+        ]:
             raise Exception(
                 f"Invalid choices: {invalid_choices}\nMust use choices from {self.valid_choices}")
         if CountTypes.ALL.name in selected_choices:
@@ -81,11 +82,11 @@ class CustomFormatter(argparse.RawTextHelpFormatter, argparse.ArgumentDefaultsHe
 
     @staticmethod
     def _get_help_length(enum_type):
-        max_length = max([len(name[0]) for name in enum_type.__members__.items()])
-        help_text = {}
-        for name in enum_type.__members__.items():
-            help_text[name[0]] = name[0].lower() + ('-' * (max_length - len(name[0]))) + ": "
-        return help_text
+        max_length = max(len(name[0]) for name in enum_type.__members__.items())
+        return {
+            name[0]: name[0].lower() + ('-' * (max_length - len(name[0]))) + ": "
+            for name in enum_type.__members__.items()
+        }
 
     def _get_help_string(self, action):
 

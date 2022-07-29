@@ -138,7 +138,7 @@ class Repository(object):  # pylint: disable=too-many-public-methods
 
     def push_to_remote_branch(self, remote, remote_branch):
         """Push the current branch to the specified remote repository and branch."""
-        refspec = "{}:{}".format(self.get_branch_name(), remote_branch)
+        refspec = f"{self.get_branch_name()}:{remote_branch}"
         return self.git_push([remote, refspec])
 
     def fetch_remote_branch(self, repository, branch):
@@ -177,10 +177,7 @@ class Repository(object):  # pylint: disable=too-many-public-methods
 
         If no directory is specified, then the current working directory is used.
         """
-        if directory is not None:
-            params = ["git", "-C", directory]
-        else:
-            params = ["git"]
+        params = ["git", "-C", directory] if directory is not None else ["git"]
         params.extend(["rev-parse", "--show-toplevel"])
         result = Repository._run_process("rev-parse", params)
         result.check_returncode()

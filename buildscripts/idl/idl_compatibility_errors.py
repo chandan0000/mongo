@@ -158,9 +158,8 @@ class IDLCompatibilityError(object):
         Error in compatibility_test_pass_new/file.idl: ID0001: 'command' has an invalid API
         version '2'.
         """
-        msg = "Comparing %s and %s: Error in %s: %s: %s" % (os.path.basename(self.old_idl_dir),
-                                                            os.path.basename(self.new_idl_dir),
-                                                            self.file, self.error_id, self.msg)
+        msg = f"Comparing {os.path.basename(self.old_idl_dir)} and {os.path.basename(self.new_idl_dir)}: Error in {self.file}: {self.error_id}: {self.msg}"
+
         return msg
 
 
@@ -220,7 +219,10 @@ class IDLCompatibilityErrorCollection(object):
     def dump_errors(self) -> None:
         """Print the list of errors."""
         error_list = self.to_list()
-        print("Errors found while checking IDL compatibility: %s errors:" % (len(error_list)))
+        print(
+            f"Errors found while checking IDL compatibility: {len(error_list)} errors:"
+        )
+
         for error_msg in error_list:
             print("%s\n\n" % error_msg)
         print("------------------------------------------------")
@@ -977,10 +979,11 @@ class IDLCompatibilityContext(object):
 
 def _assert_unique_error_messages() -> None:
     """Assert that error codes are unique."""
-    error_ids = []
-    for module_member in inspect.getmembers(sys.modules[__name__]):
-        if module_member[0].startswith("ERROR_ID"):
-            error_ids.append(module_member[1])
+    error_ids = [
+        module_member[1]
+        for module_member in inspect.getmembers(sys.modules[__name__])
+        if module_member[0].startswith("ERROR_ID")
+    ]
 
     error_ids_set = set(error_ids)
     if len(error_ids) != len(error_ids_set):

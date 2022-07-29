@@ -96,7 +96,7 @@ class EvgExpansions(BaseModel):
         """
         return SuiteSplitConfig(
             evg_project=self.project,
-            target_resmoke_time=self.target_resmoke_time if self.target_resmoke_time else 60,
+            target_resmoke_time=self.target_resmoke_time or 60,
             max_sub_suites=self.max_sub_suites,
             max_tests_per_suite=self.max_tests_per_suite,
             start_date=start_date,
@@ -133,8 +133,7 @@ def translate_run_var(run_var: str, build_variant: Variant) -> Any:
     :param build_variant: Build variant configuration.
     :return: Value of run_var.
     """
-    match = EXPANSION_RE.search(run_var)
-    if match:
+    if match := EXPANSION_RE.search(run_var):
         value = build_variant.expansion(match.group("id"))
         if value is None:
             value = match.group("default")
@@ -224,10 +223,7 @@ class GenerateBuildVariantOrchestrator:
         run_func = task_def.generate_resmoke_tasks_command
         run_vars = run_func["vars"]
 
-        repeat_suites = 1
-        if self.evg_expansions.resmoke_repeat_suites:
-            repeat_suites = self.evg_expansions.resmoke_repeat_suites
-
+        repeat_suites = self.evg_expansions.resmoke_repeat_suites or 1
         return ResmokeGenTaskParams(
             use_large_distro=run_vars.get("use_large_distro"),
             require_multiversion=run_vars.get("require_multiversion"),

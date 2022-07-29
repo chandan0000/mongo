@@ -106,14 +106,13 @@ class BufferedHandler(logging.Handler):
                 # be None after this point.
                 self.__flush_event = flush.flush_after(self, delay=self.interval_secs)
 
-            if not self.__flush_scheduled_by_emit and len(self.__emit_buffer) >= self.capacity:
-                # Attempt to flush the buffer early if we haven't already done so. We don't bother
-                # calling flush.cancel() and flush.flush_after() when 'self.__flush_event' is
-                # already scheduled to happen as soon as possible to avoid introducing unnecessary
-                # delays in emit().
-                if flush.cancel(self.__flush_event):
-                    self.__flush_event = flush.flush_after(self, delay=0.0)
-                    self.__flush_scheduled_by_emit = True
+            if (
+                not self.__flush_scheduled_by_emit
+                and len(self.__emit_buffer) >= self.capacity
+                and flush.cancel(self.__flush_event)
+            ):
+                self.__flush_event = flush.flush_after(self, delay=0.0)
+                self.__flush_scheduled_by_emit = True
 
     def flush(self):
         """Ensure all logging output has been flushed."""
@@ -185,7 +184,7 @@ class HTTPHandler(object):
         self.url_root = url_root
 
     def _make_url(self, endpoint):
-        return "%s/%s/" % (self.url_root.rstrip("/"), endpoint.strip("/"))
+        return f'{self.url_root.rstrip("/")}/{endpoint.strip("/")}/'
 
     def post(self, endpoint, data=None, headers=None, timeout_secs=_TIMEOUT_SECS):
         """Send a POST request to the specified endpoint with the supplied data.

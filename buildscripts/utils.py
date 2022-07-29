@@ -28,7 +28,7 @@ def get_git_branch_string(prefix="", postfix=""):
         par = tt[len(tt) - 2]
         mt = re.compile(r".*_([vV]\d+\.\d+)$").match(par)
         if mt is not None:
-            return prefix + mt.group(1).lower() + postfix
+            return prefix + mt[1].lower() + postfix
         if par.find("Nightly") > 0:
             return ""
 
@@ -47,10 +47,12 @@ def get_git_version():
     if not version.startswith("ref: "):
         return version
     version = version[5:]
-    git_ver = ".git/" + version
-    if not os.path.exists(git_ver):
-        return version
-    return open(git_ver, "r").read().strip()
+    git_ver = f".git/{version}"
+    return (
+        open(git_ver, "r").read().strip()
+        if os.path.exists(git_ver)
+        else version
+    )
 
 
 def get_git_describe():
@@ -67,8 +69,7 @@ def execsys(args):
         rc = re.compile(r"\s+")
         args = rc.split(args)
     proc = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    res = proc.communicate()
-    return res
+    return proc.communicate()
 
 
 def which(executable):
@@ -97,7 +98,7 @@ def replace_with_repr(unicode_error):
     # repr() of the offending bytes into the decoded string
     # at the position they occurred
     offender = unicode_error.object[unicode_error.start:unicode_error.end]
-    return (str(repr(offender).strip("'").strip('"')), unicode_error.end)
+    return repr(offender).strip("'").strip('"'), unicode_error.end
 
 
 codecs.register_error("repr", replace_with_repr)

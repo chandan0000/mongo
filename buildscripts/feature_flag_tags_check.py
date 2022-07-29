@@ -73,9 +73,9 @@ def main(diff_file, ent_path):
 
     _run_git_cmd(["apply", diff_file])
     _run_git_cmd(["apply", diff_file], cwd=ent_path)
-    tests_missing_fcv_tag = get_tests_missing_fcv_tag(tests_with_feature_flag_tag)
-
-    if tests_missing_fcv_tag:
+    if tests_missing_fcv_tag := get_tests_missing_fcv_tag(
+        tests_with_feature_flag_tag
+    ):
         print(f"Found tests missing `{REQUIRES_FCV_TAG_LATEST}` tag:\n" +
               "\n".join(tests_missing_fcv_tag))
         sys.exit(1)

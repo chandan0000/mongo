@@ -120,7 +120,7 @@ class HTTPHandler(object):
 
     def make_url(self, endpoint):
         """Generate a url to post to."""
-        return "%s/%s/" % (self.url_root.rstrip("/"), endpoint.strip("/"))
+        return f'{self.url_root.rstrip("/")}/{endpoint.strip("/")}/'
 
     def post(self, endpoint, data=None, headers=None, timeout_secs=BUILD_LOGGER_TIMEOUT_SECS):
         """
@@ -200,7 +200,7 @@ class BuildloggerServer(object):
 
     def new_build_id(self, suffix):
         """Return a new build id for sending global logs to."""
-        builder = "%s_%s" % (self.builder, suffix)
+        builder = f"{self.builder}_{suffix}"
         build_num = int(self.build_num)
 
         response = self.handler.post(
@@ -242,9 +242,9 @@ class BuildloggerServer(object):
             self.handler.post(endpoint, data=dlines)
         except requests.HTTPError as err:
             # Handle the "Request Entity Too Large" error, set the max size and retry.
-            raise ValueError("Encountered an HTTP error: %s" % (err))
+            raise ValueError(f"Encountered an HTTP error: {err}")
         except requests.RequestException as err:
-            raise ValueError("Encountered a network error: %s" % (err))
+            raise ValueError(f"Encountered a network error: {err}")
         except:  # pylint: disable=bare-except
             raise ValueError("Encountered an error.")
 
@@ -268,11 +268,7 @@ def _compute_security_risk(security_risk_profile):
 
     priorities = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'OK', 'UNKNOWN']
 
-    for priority in priorities:
-        if cm[priority] > 0:
-            return priority
-
-    return "OK"
+    return next((priority for priority in priorities if cm[priority] > 0), "OK")
 
 
 @functools.total_ordering
@@ -305,7 +301,7 @@ class VersionInfo:
             # Clean the version information
             # Some versions start with 'v'. Some components have a mix of 'v' and not 'v' prefixed versions so trim the 'v'
             # MongoDB versions start with 'r'
-            if ver_str[0] == 'v' or ver_str[0] == 'r':
+            if ver_str[0] in ['v', 'r']:
                 self.ver_str = ver_str[1:]
 
             # Git hashes are not valid versions
@@ -327,7 +323,7 @@ class VersionInfo:
             self.ver_str = self.ver_str.replace("asio-", "")
 
             if self.ver_str.endswith('-'):
-                self.ver_str = self.ver_str[0:-1]
+                self.ver_str = self.ver_str[:-1]
 
             # Boost keeps varying the version strings so filter for anything with 2 or more ascii charaters
             if RE_LETTERS.search(self.ver_str):
@@ -436,7 +432,7 @@ def _retry_on_except(count, func):
 
         retry += 1
 
-    raise ValueError("Failed to run query after retries %s" % (count))
+    raise ValueError(f"Failed to run query after retries {count}")
 
 
 class Component:
@@ -492,7 +488,7 @@ class Component:
 
                 if "items" not in vjson:
                     LOGGER.warn("Missing items in response: %s", vjson)
-                    raise ValueError("Missing items in response for " + versions_url)
+                    raise ValueError(f"Missing items in response for {versions_url}")
 
                 return vjson
 
@@ -550,7 +546,10 @@ class BlackDuckConfig:
     def __init__(self):
         """Init Black Duck config from disk."""
         if not os.path.exists(BLACKDUCK_RESTCONFIG):
-            raise ValueError("Cannot find %s for blackduck configuration" % (BLACKDUCK_RESTCONFIG))
+            raise ValueError(
+                f"Cannot find {BLACKDUCK_RESTCONFIG} for blackduck configuration"
+            )
+
 
         with open(BLACKDUCK_RESTCONFIG, "r") as rfh:
             rc = json.loads(rfh.read())
@@ -587,7 +586,7 @@ def _query_blackduck():
     hub = HubInstance()
 
     LOGGER.info("Getting version from blackduck")
-    version = hub.execute_get(hub.get_urlbase() + "/api/current-version").json()
+    version = hub.execute_get(f"{hub.get_urlbase()}/api/current-version").json()
     LOGGER.info("Version: %s", version)
 
     # Get a list of all projects, this is a privileged call and will fail if we do not have a valid license
@@ -637,7 +636,7 @@ class TestResult:
 
         if url:
             self.url = url
-            self.url_raw = url + "?raw=1"
+            self.url_raw = f"{url}?raw=1"
 
         if status == "pass":
             self.exit_code = 0
@@ -680,7 +679,7 @@ class LocalReportLogger(ReportLogger):
 
     def log_report(self, name: str, content: str) -> Optional[str]:
         """Log report to a local file."""
-        file_name = os.path.join(LOCAL_REPORTS_DIR, name + ".log")
+        file_name = os.path.join(LOCAL_REPORTS_DIR, f"{name}.log")
 
         with open(file_name, "w") as wfh:
             wfh.write(content)
@@ -704,10 +703,7 @@ class BuildLoggerReportLogger(ReportLogger):
 
 
 def _get_default(list1, idx, default):
-    if (idx + 1) < len(list1):
-        return list1[idx]
-
-    return default
+    return list1[idx] if (idx + 1) < len(list1) else default
 
 
 class TableWriter:
@@ -734,15 +730,17 @@ class TableWriter:
 
     def print(self, writer: io.StringIO):
         """Print the final table to the string stream."""
-        cols = max([len(r) for r in self._rows])
+        cols = max(len(r) for r in self._rows)
 
         assert cols == len(self._headers)
 
-        col_sizes = []
-        for col in range(0, cols):
-            col_sizes.append(
-                max([len(_get_default(row, col, []))
-                     for row in self._rows] + [len(self._headers[col])]))
+        col_sizes = [
+            max(
+                [len(_get_default(row, col, [])) for row in self._rows]
+                + [len(self._headers[col])]
+            )
+            for col in range(cols)
+        ]
 
         TableWriter._write_row(col_sizes, self._headers, writer)
 
@@ -797,7 +795,7 @@ class ReportManager:
         """
         comp_name = ReportManager._get_norm_comp_name(comp_name)
 
-        name = comp_name + "_" + report_name
+        name = f"{comp_name}_{report_name}"
 
         LOGGER.info("Writing Report %s - %s", name, status)
 
@@ -850,7 +848,7 @@ class ThirdPartyComponent:
 
 def _get_field(name, ymap, field: str):
     if field not in ymap:
-        raise ValueError("Missing field %s for component %s" % (field, name))
+        raise ValueError(f"Missing field {field} for component {name}")
 
     return ymap[field]
 
@@ -861,7 +859,7 @@ def _get_supression_field(ymap, field: str):
 
     value = ymap[field].lower()
 
-    if not "todo" in value:
+    if "todo" not in value:
         raise ValueError(
             "Invalid suppression, a suppression must include the word 'TODO' so that the TODO scanner finds resolved tickets."
         )
@@ -1067,9 +1065,11 @@ For more information, see {BLACKDUCK_WIKI_PAGE}.
 def _get_third_party_directories():
     third_party = []
     for tp in THIRD_PARTY_DIRECTORIES:
-        for entry in os.scandir(tp):
-            if entry.name not in ["scripts"] and entry.is_dir():
-                third_party.append(entry.path)
+        third_party.extend(
+            entry.path
+            for entry in os.scandir(tp)
+            if entry.name not in ["scripts"] and entry.is_dir()
+        )
 
     return sorted(third_party)
 
@@ -1164,14 +1164,14 @@ class Analyzer:
             _generate_report_vulnerability(self.mgr, comp, mcomp, False)
 
     def _get_mongo_component(self, comp: Component):
-        mcomp = next((x for x in self.third_party_components if x.name == comp.name), None)
-
-        if not mcomp:
+        if mcomp := next(
+            (x for x in self.third_party_components if x.name == comp.name), None
+        ):
+            return mcomp
+        else:
             raise ValueError(
                 "Cannot find third party component for Black Duck Component '%s'. Please update '%s'. "
                 % (comp.name, THIRD_PARTY_COMPONENTS_FILE))
-
-        return mcomp
 
     def run(self, logger: ReportLogger, report_file: Optional[str], vulnerabilties_only: bool):
         """Run analysis of Black Duck scan and local files."""
@@ -1188,9 +1188,11 @@ class Analyzer:
         # Rather then constantly have to supress this in Black Duck itself which will generate false positives
         # We filter ourself our of the list of components.
         self.black_duck_components = [
-            comp for comp in self.black_duck_components
-            if not (comp.name == "MongoDB" or comp.name == "WiredTiger")
+            comp
+            for comp in self.black_duck_components
+            if comp.name not in ["MongoDB", "WiredTiger"]
         ]
+
 
         # Remove duplicate Black Duck components. We only care about the component with highest version number
         # Black Duck can detect different versions of the same component for instance if an upgrade of a component happens

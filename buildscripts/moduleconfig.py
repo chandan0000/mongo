@@ -54,15 +54,17 @@ def discover_modules(module_root, allowed_modules):
         module = None
 
         if allowed_modules is not None and name not in allowed_modules:
-            print("skipping module: %s" % (name))
+            print(f"skipping module: {name}")
             continue
 
         try:
-            print("adding module: %s" % (name))
+            print(f"adding module: {name}")
             fp = open(build_py, "r")
             try:
-                module = imp.load_module("module_" + name, fp, build_py,
-                                         (".py", "r", imp.PY_SOURCE))
+                module = imp.load_module(
+                    f"module_{name}", fp, build_py, (".py", "r", imp.PY_SOURCE)
+                )
+
                 if getattr(module, "name", None) is None:
                     module.name = name
                 found_modules.append(module)
@@ -95,11 +97,11 @@ def discover_module_directories(module_root, allowed_modules):
         build_py = os.path.join(root, 'build.py')
 
         if allowed_modules is not None and name not in allowed_modules:
-            print("skipping module: %s" % (name))
+            print(f"skipping module: {name}")
             continue
 
         if os.path.isfile(build_py):
-            print("adding module: %s" % (name))
+            print(f"adding module: {name}")
             found_modules.append(name)
 
     return found_modules
@@ -116,9 +118,8 @@ def configure_modules(modules, conf):
     env['MONGO_MODULES'] = []
     for module in modules:
         name = module.name
-        print("configuring module: %s" % (name))
-        modules_configured = module.configure(conf, env)
-        if modules_configured:
+        print(f"configuring module: {name}")
+        if modules_configured := module.configure(conf, env):
             for module_name in modules_configured:
                 env['MONGO_MODULES'].append(module_name)
         else:
@@ -145,8 +146,7 @@ def __get_src_relative_path(path):
     path = os.path.abspath(os.path.normpath(path))
     if not path.startswith(src_dir):
         raise ValueError('Path "%s" is not relative to the src directory "%s"' % (path, src_dir))
-    result = path[len(src_dir) + 1:]
-    return result
+    return path[len(src_dir) + 1:]
 
 
 def __get_module_path(module_frame_depth):

@@ -89,9 +89,7 @@ class GenerateConfig(object):
     @property
     def run_build_variant(self):
         """Build variant tasks should run against."""
-        if self._run_build_variant:
-            return self._run_build_variant
-        return self.build_variant
+        return self._run_build_variant or self.build_variant
 
     def validate(self, evg_conf: EvergreenProjectConfig):
         """
@@ -124,10 +122,14 @@ def _parse_avg_test_runtime(test: str,
     :param test: Test name.
     :return: Historical average runtime of the test.
     """
-    for test_stat in task_avg_test_runtime_stats:
-        if test_stat.test_name == test:
-            return test_stat.runtime
-    return None
+    return next(
+        (
+            test_stat.runtime
+            for test_stat in task_avg_test_runtime_stats
+            if test_stat.test_name == test
+        ),
+        None,
+    )
 
 
 def _calculate_timeout(avg_test_runtime: float) -> int:
@@ -191,8 +193,9 @@ class TaskGenerator:
         :return: TimeoutInfo to use.
         """
         if self.task_runtime_stats:
-            avg_test_runtime = _parse_avg_test_runtime(test, self.task_runtime_stats)
-            if avg_test_runtime:
+            if avg_test_runtime := _parse_avg_test_runtime(
+                test, self.task_runtime_stats
+            ):
                 LOGGER.debug("Avg test runtime", test=test, runtime=avg_test_runtime)
 
                 timeout = _calculate_timeout(avg_test_runtime)
@@ -287,8 +290,9 @@ class GenerateBurnInExecutor(BurnInExecutor):
         self.repeat_config = repeat_config
         self.evg_api = evg_api
         self.generate_tasks_file = generate_tasks_file
-        self.history_end_date = history_end_date if history_end_date else datetime.utcnow()\
-            .replace(microsecond=0)
+        self.history_end_date = history_end_date or datetime.utcnow().replace(
+            microsecond=0
+        )
 
     def get_task_runtime_history(self, task: str) -> List[TestRuntime]:
         """

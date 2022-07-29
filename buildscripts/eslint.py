@@ -10,6 +10,7 @@ There is also a -d mode that assumes you only want to run one copy of ESLint per
 parameter supplied. This lets ESLint search for candidate files to lint.
 """
 
+
 import logging
 import os
 import shutil
@@ -57,7 +58,7 @@ ESLINT_HTTP_DARWIN_CACHE = "https://s3.amazonaws.com/boxes.10gen.com/build/eslin
                             ESLINT_VERSION + "-darwin.tar.gz"
 
 # Path in the tarball to the ESLint binary.
-ESLINT_SOURCE_TAR_BASE = string.Template(ESLINT_PROGNAME + "-$platform-$arch")
+ESLINT_SOURCE_TAR_BASE = string.Template(f"{ESLINT_PROGNAME}-$platform-$arch")
 
 LOGGER = structlog.get_logger(__name__)
 
@@ -84,17 +85,20 @@ def get_eslint_from_cache(dest_file, platform, arch):
     elif platform == "Darwin":
         url = ESLINT_HTTP_DARWIN_CACHE
     else:
-        raise ValueError('ESLint is not available as a binary for ' + platform)
+        raise ValueError(f'ESLint is not available as a binary for {platform}')
 
     dest_dir = tempfile.gettempdir()
     temp_tar_file = os.path.join(dest_dir, "temp.tar.gz")
 
     # Download the file
-    print("Downloading ESLint %s from %s, saving to %s" % (ESLINT_VERSION, url, temp_tar_file))
+    print(
+        f"Downloading ESLint {ESLINT_VERSION} from {url}, saving to {temp_tar_file}"
+    )
+
     urllib.request.urlretrieve(url, temp_tar_file)
 
     # pylint: disable=too-many-function-args
-    print("Extracting ESLint %s to %s" % (ESLINT_VERSION, dest_file))
+    print(f"Extracting ESLint {ESLINT_VERSION} to {dest_file}")
     eslint_distfile = ESLINT_SOURCE_TAR_BASE.substitute(platform=platform, arch=arch)
     extract_eslint(temp_tar_file, eslint_distfile)
     shutil.move(eslint_distfile, dest_file)
@@ -103,7 +107,7 @@ def get_eslint_from_cache(dest_file, platform, arch):
 class ESLint(object):
     """Class encapsulates finding a suitable copy of ESLint, and linting an individual file."""
 
-    def __init__(self, path, cache_dir):  # pylint: disable=too-many-branches
+    def __init__(self, path, cache_dir):    # pylint: disable=too-many-branches
         """Initialize ESLint."""
         eslint_progname = ESLINT_PROGNAME
 
@@ -122,7 +126,7 @@ class ESLint(object):
             if os.path.isfile(path):
                 self.path = path
             else:
-                print("WARNING: Could not find ESLint at %s" % path)
+                print(f"WARNING: Could not find ESLint at {path}")
 
         # Check the environment variable
         if "MONGO_ESLINT" in os.environ:
@@ -147,7 +151,9 @@ class ESLint(object):
 
             if os.path.isfile(self.path) and not self._validate_version(warn=True):
                 print(
-                    "WARNING: removing ESLint from %s to download the correct version" % self.path)
+                    f"WARNING: removing ESLint from {self.path} to download the correct version"
+                )
+
                 os.remove(self.path)
 
             if not os.path.isfile(self.path):
@@ -172,8 +178,10 @@ class ESLint(object):
             return True
 
         if warn:
-            print("WARNING: ESLint found in path %s, but the version is incorrect: %s" %
-                  (self.path, esl_version))
+            print(
+                f"WARNING: ESLint found in path {self.path}, but the version is incorrect: {esl_version}"
+            )
+
         return False
 
     def _lint(self, file_name, print_diff):
@@ -186,7 +194,7 @@ class ESLint(object):
             if print_diff:
                 # Take a lock to ensure error messages do not get mixed when printed to the screen
                 with self.print_lock:
-                    print("ERROR: ESLint found errors in " + file_name)
+                    print(f"ERROR: ESLint found errors in {file_name}")
                     print(err.output)
             return False
 
@@ -216,7 +224,7 @@ def _lint_files(eslint, files):
     """Lint a list of files with ESLint."""
     eslint = ESLint(eslint, _get_build_dir())
 
-    print("Running ESLint %s at %s" % (ESLINT_VERSION, eslint.path))
+    print(f"Running ESLint {ESLINT_VERSION} at {eslint.path}")
     lint_clean = parallel.parallel_process([os.path.abspath(f) for f in files], eslint.lint)
 
     if not lint_clean:
@@ -229,10 +237,7 @@ def _lint_files(eslint, files):
 
 def lint_patch(eslint, infile):
     """Lint patch command entry point."""
-    files = git.get_files_to_check_from_patch(infile, is_interesting_file)
-
-    # Patch may have files that we do not want to check which is fine
-    if files:
+    if files := git.get_files_to_check_from_patch(infile, is_interesting_file):
         return _lint_files(eslint, files)
     return True
 
@@ -244,10 +249,7 @@ def lint_git_diff(eslint: Optional[str]) -> bool:
     :param eslint: Path to eslint command.
     :return: True if lint was successful.
     """
-    files = gather_changed_files_for_lint(is_interesting_file)
-
-    # Patch may have files that we do not want to check which is fine
-    if files:
+    if files := gather_changed_files_for_lint(is_interesting_file):
         return _lint_files(eslint, files)
     return True
 
@@ -268,7 +270,7 @@ def _autofix_files(eslint, files):
     """Auto-fix the specified files with ESLint."""
     eslint = ESLint(eslint, _get_build_dir())
 
-    print("Running ESLint %s at %s" % (ESLINT_VERSION, eslint.path))
+    print(f"Running ESLint {ESLINT_VERSION} at {eslint.path}")
     autofix_clean = parallel.parallel_process([os.path.abspath(f) for f in files], eslint.autofix)
 
     if not autofix_clean:
@@ -279,11 +281,7 @@ def _autofix_files(eslint, files):
 
 def autofix_func(eslint, dirmode, glob):
     """Auto-fix files command entry point."""
-    if dirmode:
-        files = glob
-    else:
-        files = git.get_files_to_check(glob, is_interesting_file)
-
+    files = glob if dirmode else git.get_files_to_check(glob, is_interesting_file)
     return _autofix_files(eslint, files)
 
 

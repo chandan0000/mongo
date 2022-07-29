@@ -186,22 +186,28 @@ def _validate_type_properties(ctxt, idl_type, syntax_type):
     if len(idl_type.bson_serialization_type) == 1:
         bson_type = idl_type.bson_serialization_type[0]
 
-        if bson_type == "any":
-            # For 'any', a deserializer is required but the user can try to get away with the default
-            # serialization for their C++ type.
-            if idl_type.deserializer is None:
-                ctxt.add_missing_ast_required_field_error(idl_type, syntax_type, idl_type.name,
-                                                          "deserializer")
+        if (
+            bson_type == "any"
+            and idl_type.deserializer is None
+            or bson_type != "any"
+            and bson_type != "chain"
+            and bson_type == "string"
+            and idl_type.deserializer is None
+        ):
+            ctxt.add_missing_ast_required_field_error(idl_type, syntax_type, idl_type.name,
+                                                      "deserializer")
+        elif (
+            bson_type == "any"
+            or bson_type != "chain"
+            and bson_type == "string"
+            or bson_type != "chain"
+            and bson_type in ["array", "object", "bindata"]
+        ):
+            pass
         elif bson_type == "chain":
             _validate_chain_type_properties(ctxt, idl_type, syntax_type)
 
-        elif bson_type == "string":
-            # Strings support custom serialization unlike other non-object scalar types
-            if idl_type.deserializer is None:
-                ctxt.add_missing_ast_required_field_error(idl_type, syntax_type, idl_type.name,
-                                                          "deserializer")
-
-        elif not bson_type in ["array", "object", "bindata"]:
+        else:
             if idl_type.deserializer is None:
                 ctxt.add_missing_ast_required_field_error(idl_type, syntax_type, idl_type.name,
                                                           "deserializer")
@@ -217,11 +223,9 @@ def _validate_type_properties(ctxt, idl_type, syntax_type):
         if bson_type == "bindata" and isinstance(idl_type, syntax.Type) and idl_type.default:
             ctxt.add_bindata_no_default(idl_type, syntax_type, idl_type.name)
 
-    else:
-        # Now, this is a list of scalar types
-        if idl_type.deserializer is None:
-            ctxt.add_missing_ast_required_field_error(idl_type, syntax_type, idl_type.name,
-                                                      "deserializer")
+    elif idl_type.deserializer is None:
+        ctxt.add_missing_ast_required_field_error(idl_type, syntax_type, idl_type.name,
+                                                  "deserializer")
 
     _validate_cpp_type(ctxt, idl_type, syntax_type)
 
@@ -292,8 +296,7 @@ def _bind_struct_common(ctxt, parsed_spec, struct, ast_struct):
 
     # Parse the fields last so that they are serialized after chained stuff.
     for field in struct.fields or []:
-        ast_field = _bind_field(ctxt, parsed_spec, field)
-        if ast_field:
+        if ast_field := _bind_field(ctxt, parsed_spec, field):
             if ast_field.supports_doc_sequence and not isinstance(ast_struct, ast.Command):
                 # Doc sequences are only supported in commands at the moment
                 ctxt.add_bad_struct_field_as_doc_sequence_error(ast_struct, ast_struct.name,
@@ -314,7 +317,7 @@ def _bind_struct_common(ctxt, parsed_spec, struct, ast_struct):
         comparison_orders = set()  # type: Set[int]
 
         for ast_field in ast_struct.fields:
-            if not ast_field.comparison_order == -1:
+            if ast_field.comparison_order != -1:
                 use_default_order = False
                 if ast_field.comparison_order in comparison_orders:
                     ctxt.add_duplicate_comparison_order_field_error(ast_struct, ast_struct.name,
@@ -323,10 +326,8 @@ def _bind_struct_common(ctxt, parsed_spec, struct, ast_struct):
                 comparison_orders.add(ast_field.comparison_order)
 
         if use_default_order:
-            pos = 0
-            for ast_field in ast_struct.fields:
+            for pos, ast_field in enumerate(ast_struct.fields):
                 ast_field.comparison_order = pos
-                pos += 1
 
 
 def _bind_struct(ctxt, parsed_spec, struct):
@@ -579,10 +580,7 @@ def _bind_enum_value(ctxt, parsed_spec, location, enum_name, enum_value):
 
     syntax_enum = resolve_enum_value(ctxt, location, cast(syntax.Enum, access_check_enum),
                                      enum_value)
-    if not syntax_enum:
-        return None
-
-    return syntax_enum.name
+    return syntax_enum.name if syntax_enum else None
 
 
 def _bind_single_check(ctxt, parsed_spec, access_check):
@@ -612,11 +610,13 @@ def _bind_single_check(ctxt, parsed_spec, access_check):
         at_names = []
         for at in privilege.action_type:
             at_names.append(at)
-            bound_at = _bind_enum_value(ctxt, parsed_spec, privilege, "ActionType", at)
-            if not bound_at:
-                return None
+            if bound_at := _bind_enum_value(
+                ctxt, parsed_spec, privilege, "ActionType", at
+            ):
+                ast_privilege.action_type.append(bound_at)
 
-            ast_privilege.action_type.append(bound_at)
+            else:
+                return None
 
         at_names_set = set(at_names)
         if len(at_names_set) != len(at_names):
@@ -678,24 +678,16 @@ def _bind_access_check(ctxt, parsed_spec, command):
 
     if access_check.simple:
         ast_access_check = _bind_single_check(ctxt, parsed_spec, access_check.simple)
-        if not ast_access_check:
-            return None
-
-        return [ast_access_check]
-
+        return [ast_access_check] if ast_access_check else None
     if access_check.complex:
         checks = []  # List[ast.AccessCheck]
         for ac in access_check.complex:
-            ast_access_check = _bind_single_check(ctxt, parsed_spec, ac)
-            if not ast_access_check:
+            if ast_access_check := _bind_single_check(ctxt, parsed_spec, ac):
+                checks.append(ast_access_check)
+
+            else:
                 return None
-            checks.append(ast_access_check)
-
-        if not _validate_check_uniqueness(ctxt, checks):
-            return None
-
-        return checks
-
+        return checks if _validate_check_uniqueness(ctxt, checks) else None
     return None
 
 
@@ -858,7 +850,7 @@ def _normalize_method_name(cpp_type_name, cpp_method_name):
 
     # Method is prefixed with just the type name
     if cpp_method_name.startswith(type_name):
-        return '::'.join(cpp_type_name.split('::')[0:-1]) + "::" + cpp_method_name
+        return '::'.join(cpp_type_name.split('::')[:-1]) + "::" + cpp_method_name
 
     return cpp_method_name
 
@@ -878,7 +870,7 @@ def _bind_expression(expr, allow_literal_string=True):
     node.export = True
 
     # bool
-    if (expr.literal == "true") or (expr.literal == "false"):
+    if expr.literal in ["true", "false"]:
         node.expr = expr.literal
         return node
 

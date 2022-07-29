@@ -60,11 +60,7 @@ def is_test_idl(idl_path: str) -> bool:
     """Check if an IDL file is a test file."""
     test_idls_subpaths = ["/idl/tests/", "unittest.idl"]
 
-    for file_name in test_idls_subpaths:
-        if idl_path.find(file_name) != -1:
-            return True
-
-    return False
+    return any(file_name in idl_path for file_name in test_idls_subpaths)
 
 
 def get_command_definitions(api_version: str, directory: str,
@@ -87,7 +83,7 @@ def get_command_definitions(api_version: str, directory: str,
 
 def list_commands_for_api(api_version: str, mongod_or_mongos: str, install_dir: str) -> Set[str]:
     """Get a list of commands in a given API version by calling listCommands."""
-    assert mongod_or_mongos in ("mongod", "mongos")
+    assert mongod_or_mongos in {"mongod", "mongos"}
     logging.info("Calling listCommands on %s", mongod_or_mongos)
     dbpath = TemporaryDirectory()
     fixturelib = FixtureLib()
@@ -156,7 +152,7 @@ def remove_skipped_commands(command_sets: Dict[str, Set[str]]):
         "isMaster",
     }
 
-    for key in command_sets.keys():
+    for key in command_sets:
         command_sets[key].difference_update(skipped_commands)
 
 
@@ -181,8 +177,12 @@ def main():
     logging.basicConfig(level=logging.WARNING)
     logging.getLogger(LOGGER_NAME).setLevel(logging.DEBUG if args.verbose else logging.INFO)
 
-    command_sets = {}
-    command_sets["mongod"] = list_commands_for_api(args.api_version, "mongod", args.install_dir)
+    command_sets = {
+        "mongod": list_commands_for_api(
+            args.api_version, "mongod", args.install_dir
+        )
+    }
+
     command_sets["mongos"] = list_commands_for_api(args.api_version, "mongos", args.install_dir)
     command_sets["idl"] = set(get_command_definitions(args.api_version, os.getcwd(), args.include))
     remove_skipped_commands(command_sets)

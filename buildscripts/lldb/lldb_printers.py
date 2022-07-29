@@ -7,6 +7,7 @@ To import script in lldb, run:
 This file must maintain Python 2 and 3 compatibility until Apple
 upgrades to Python 3 and updates their LLDB to use it.
 """
+
 from __future__ import print_function
 
 import string
@@ -22,7 +23,7 @@ try:
     from bson import json_util
     from bson.codec_options import CodecOptions
 except ImportError:
-    print("Warning: Could not load bson library for Python {}.".format(sys.version))
+    print(f"Warning: Could not load bson library for Python {sys.version}.")
     print("Check with the pip command if pymongo 3.x is installed.")
     bson = None
 
@@ -51,7 +52,7 @@ def __lldb_init_module(debugger, *_args):
 #############################
 
 
-def StatusPrinter(valobj, *_args):  # pylint: disable=invalid-name
+def StatusPrinter(valobj, *_args):    # pylint: disable=invalid-name
     """Pretty-Prints MongoDB Status objects."""
     err = valobj.GetChildMemberWithName("_error")
     code = err.\
@@ -62,29 +63,29 @@ def StatusPrinter(valobj, *_args):  # pylint: disable=invalid-name
     reason = err.\
         GetChildMemberWithName("reason").\
         GetSummary()
-    return "Status({}, {})".format(code, reason)
+    return f"Status({code}, {reason})"
 
 
-def StatusWithPrinter(valobj, *_args):  # pylint: disable=invalid-name
+def StatusWithPrinter(valobj, *_args):    # pylint: disable=invalid-name
     """Extend the StatusPrinter to print the value of With for a StatusWith."""
     status = valobj.GetChildMemberWithName("_status")
     code = status.GetChildMemberWithName("_error").\
         GetChildMemberWithName("code").\
         GetValue()
     if code is None:
-        return "StatusWith(OK, {})".format(valobj.GetChildMemberWithName("_t").GetValue())
+        return f'StatusWith(OK, {valobj.GetChildMemberWithName("_t").GetValue()})'
     rep = StatusPrinter(status)
     return rep.replace("Status", "StatusWith", 1)
 
 
-def StringDataPrinter(valobj, *_args):  # pylint: disable=invalid-name
+def StringDataPrinter(valobj, *_args):    # pylint: disable=invalid-name
     """Print StringData value."""
     ptr = valobj.GetChildMemberWithName("_data").GetValueAsUnsigned()
     size1 = valobj.GetChildMemberWithName("_size").GetValueAsUnsigned(0)
-    return '"{}"'.format(valobj.GetProcess().ReadMemory(ptr, size1, lldb.SBError()).encode("utf-8"))
+    return f'"{valobj.GetProcess().ReadMemory(ptr, size1, lldb.SBError()).encode("utf-8")}"'
 
 
-def BSONObjPrinter(valobj, *_args):  # pylint: disable=invalid-name
+def BSONObjPrinter(valobj, *_args):    # pylint: disable=invalid-name
     """Print a BSONObj in a JSON format."""
     ptr = valobj.GetChildMemberWithName("_objdata").GetValueAsUnsigned()
     size = struct.unpack("<I", valobj.GetProcess().ReadMemory(ptr, 4, lldb.SBError()))[0]
@@ -97,10 +98,7 @@ def BSONObjPrinter(valobj, *_args):  # pylint: disable=invalid-name
     buf_str = bson.decode(mem)
     obj = json_util.dumps(buf_str, indent=4)
     # If the object is huge then just dump it as one line
-    if obj.count("\n") > 1000:
-        return json_util.dumps(buf_str)
-    # Otherwise try to be nice and pretty print the JSON
-    return obj
+    return json_util.dumps(buf_str) if obj.count("\n") > 1000 else obj
 
 
 def UUIDPrinter(valobj, *_args):  # pylint: disable=invalid-name
@@ -123,12 +121,9 @@ class UniquePtrPrinter:
         """Match LLDB's expected API."""
         return 1
 
-    def get_child_index(self, name):  # pylint: disable=no-self-use,no-method-argument
+    def get_child_index(self, name):    # pylint: disable=no-self-use,no-method-argument
         """Match LLDB's expected API."""
-        if name == "ptr":
-            return 0
-        else:
-            return None
+        return 0 if name == "ptr" else None
 
     def get_child_at_index(self, index):  # pylint: disable=no-self-use,no-method-argument
         """Match LLDB's expected API.
@@ -162,19 +157,13 @@ class OptionalPrinter:
         """Match LLDB's expected API."""
         return 1
 
-    def get_child_index(self, name):  # pylint: disable=no-self-use,no-method-argument
+    def get_child_index(self, name):    # pylint: disable=no-self-use,no-method-argument
         """Match LLDB's expected API."""
-        if name == "value":
-            return 0
-        else:
-            return None
+        return 0 if name == "value" else None
 
-    def get_child_at_index(self, index):  # pylint: disable=no-self-use,no-method-argument
+    def get_child_at_index(self, index):    # pylint: disable=no-self-use,no-method-argument
         """Match LLDB's expected API."""
-        if index == 0:
-            return self.value
-        else:
-            return None
+        return self.value if index == 0 else None
 
     def has_children():  # pylint: disable=no-self-use,no-method-argument
         """Match LLDB's expected API."""

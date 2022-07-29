@@ -91,9 +91,7 @@ class Spec(object):
 
         The default is the release tag for the version being packaged.
         """
-        if self.gitspec:
-            return self.gitspec
-        return 'r' + self.version()
+        return self.gitspec or f'r{self.version()}'
 
     def version_better_than(self, version_string):
         """Return True if 'version_string' is greater than instance version."""
@@ -116,22 +114,18 @@ class Spec(object):
         # below
         #
         # "N" is either passed in on the command line, or "1"
-        if self.rel:
-            corenum = self.rel
-        else:
-            corenum = 1
-
+        corenum = self.rel or 1
         # Version suffix for RPM packages:
         # 1) RC's - "0.N.rcX"
         # 2) Nightly (snapshot) - "0.N.latest"
         # 3) Patch builds - "0.N.patch.<patch_id>"
         # 4) Standard release - "N"
         if self.is_rc():
-            return "0.%s.%s" % (corenum, re.sub('.*-', '', self.version()))
+            return f"0.{corenum}.{re.sub('.*-', '', self.version())}"
         elif self.is_nightly():
-            return "0.%s.latest" % (corenum)
+            return f"0.{corenum}.latest"
         elif self.is_patch():
-            return "0.%s.patch.%s" % (corenum, self.patch_id())
+            return f"0.{corenum}.patch.{self.patch_id()}"
         return str(corenum)
 
     def pversion(self, distro):
@@ -167,7 +161,7 @@ class Spec(object):
 
         For example, if the version is "2.5.5" the branch would be "2.5"
         """
-        return ".".join(self.ver.split(".")[0:2])
+        return ".".join(self.ver.split(".")[:2])
 
 
 class Distro(object):
@@ -219,7 +213,7 @@ class Distro(object):
             raise Exception("BUG: unsupported platform?")
         # pylint: enable=too-many-return-statements
 
-    def repodir(self, arch, build_os, spec):  # noqa: D406,D407,D412,D413
+    def repodir(self, arch, build_os, spec):    # noqa: D406,D407,D412,D413
         """Return the directory where we'll place the package files for (distro, distro_version).
 
         This is in that distro's preferred repository
@@ -246,21 +240,16 @@ class Distro(object):
 
         repo_directory = ""
 
-        if spec.is_pre_release():
-            repo_directory = "testing"
-        else:
-            repo_directory = spec.branch()
-
+        repo_directory = "testing" if spec.is_pre_release() else spec.branch()
         if re.search("^(debian|ubuntu)", self.dname):
-            return "repo/apt/%s/dists/%s/mongodb-org/%s/%s/binary-%s/" % (
-                self.dname, self.repo_os_version(build_os), repo_directory, self.repo_component(),
-                self.archname(arch))
+            return f"repo/apt/{self.dname}/dists/{self.repo_os_version(build_os)}/mongodb-org/{repo_directory}/{self.repo_component()}/binary-{self.archname(arch)}/"
+
         elif re.search("(redhat|fedora|centos|amazon)", self.dname):
-            return "repo/yum/%s/%s/mongodb-org/%s/%s/RPMS/" % (
-                self.dname, self.repo_os_version(build_os), repo_directory, self.archname(arch))
+            return f"repo/yum/{self.dname}/{self.repo_os_version(build_os)}/mongodb-org/{repo_directory}/{self.archname(arch)}/RPMS/"
+
         elif re.search("(suse)", self.dname):
-            return "repo/zypper/%s/%s/mongodb-org/%s/%s/RPMS/" % (
-                self.dname, self.repo_os_version(build_os), repo_directory, self.archname(arch))
+            return f"repo/zypper/{self.dname}/{self.repo_os_version(build_os)}/mongodb-org/{repo_directory}/{self.archname(arch)}/RPMS/"
+
         else:
             raise Exception("BUG: unsupported platform?")
 
@@ -274,9 +263,9 @@ class Distro(object):
         elif self.dname == 'debian':
             return "main"
         else:
-            raise Exception("unsupported distro: %s" % self.dname)
+            raise Exception(f"unsupported distro: {self.dname}")
 
-    def repo_os_version(self, build_os):  # pylint: disable=too-many-branches
+    def repo_os_version(self, build_os):    # pylint: disable=too-many-branches
         """Return an OS version suitable for package repo directory naming.
 
         Example, 5, 6 or 7 for redhat/centos, "precise," "wheezy," etc.
@@ -303,7 +292,7 @@ class Distro(object):
             elif build_os == 'ubuntu2004':
                 return "focal"
             else:
-                raise Exception("unsupported build_os: %s" % build_os)
+                raise Exception(f"unsupported build_os: {build_os}")
         elif self.dname == 'debian':
             if build_os == 'debian81':
                 return 'jessie'
@@ -312,9 +301,9 @@ class Distro(object):
             elif build_os == 'debian10':
                 return 'buster'
             else:
-                raise Exception("unsupported build_os: %s" % build_os)
+                raise Exception(f"unsupported build_os: {build_os}")
         else:
-            raise Exception("unsupported distro: %s" % self.dname)
+            raise Exception(f"unsupported distro: {self.dname}")
         # pylint: enable=too-many-return-statements
 
     def make_pkg(self, build_os, arch, spec, srcdir):
@@ -334,7 +323,7 @@ class Distro(object):
         """
         # Community builds only support amd64
         if arch not in ['x86_64', 'ppc64le', 's390x', 'arm64', 'aarch64']:
-            raise Exception("BUG: unsupported architecture (%s)" % arch)
+            raise Exception(f"BUG: unsupported architecture ({arch})")
 
         if re.search("(suse)", self.dname):
             return ["suse11", "suse12", "suse15"]
@@ -411,14 +400,14 @@ def main():
     spec = Spec(args.server_version, args.metadata_gitspec, args.release_number)
 
     oldcwd = os.getcwd()
-    srcdir = oldcwd + "/../"
+    srcdir = f"{oldcwd}/../"
 
     # Where to do all of our work. Use a randomly-created directory if one
     # is not passed in.
     prefix = args.prefix
     if prefix is None:
         prefix = tempfile.mkdtemp()
-    print("Working in directory %s" % prefix)
+    print(f"Working in directory {prefix}")
 
     os.chdir(prefix)
     try:
@@ -458,7 +447,7 @@ def crossproduct(*seqs):
 
 def sysassert(argv):
     """Run argv and assert that it exited with status 0."""
-    print("In %s, running %s" % (os.getcwd(), " ".join(argv)))
+    print(f'In {os.getcwd()}, running {" ".join(argv)}')
     sys.stdout.flush()
     sys.stderr.flush()
     assert subprocess.Popen(argv).wait() == 0
@@ -466,7 +455,7 @@ def sysassert(argv):
 
 def backtick(argv):
     """Run argv and return its output string."""
-    print("In %s, running %s" % (os.getcwd(), " ".join(argv)))
+    print(f'In {os.getcwd()}, running {" ".join(argv)}')
     sys.stdout.flush()
     sys.stderr.flush()
     return subprocess.Popen(argv, stdout=subprocess.PIPE).communicate()[0]
@@ -474,7 +463,7 @@ def backtick(argv):
 
 def tarfile(build_os, arch, spec):
     """Return the location where we store the downloaded tarball for this package."""
-    return "dl/mongodb-linux-%s-%s-%s.tar.gz" % (spec.version(), build_os, arch)
+    return f"dl/mongodb-linux-{spec.version()}-{build_os}-{arch}.tar.gz"
 
 
 def setupdir(distro, build_os, arch, spec):
@@ -485,8 +474,7 @@ def setupdir(distro, build_os, arch, spec):
     # the following format string is unclear, an example setupdir
     # would be dst/x86_64/debian-sysvinit/wheezy/mongodb-org-unstable/
     # or dst/x86_64/redhat/rhel55/mongodb-org-unstable/
-    return "dst/%s/%s/%s/%s%s-%s/" % (arch, distro.name(), build_os, distro.pkgbase(),
-                                      spec.suffix(), spec.pversion(distro))
+    return f"dst/{arch}/{distro.name()}/{build_os}/{distro.pkgbase()}{spec.suffix()}-{spec.pversion(distro)}/"
 
 
 def unpack_binaries_into(build_os, arch, spec, where):
@@ -499,11 +487,11 @@ def unpack_binaries_into(build_os, arch, spec, where):
     # thing and chdir into where and run tar there.
     os.chdir(where)
     try:
-        sysassert(["tar", "xvzf", rootdir + "/" + tarfile(build_os, arch, spec)])
+        sysassert(["tar", "xvzf", f"{rootdir}/{tarfile(build_os, arch, spec)}"])
         release_dir = glob('mongodb-linux-*')[0]
         for releasefile in "bin", "LICENSE-Community.txt", "README", "THIRD-PARTY-NOTICES", "MPL-2":
-            print("moving file: %s/%s" % (release_dir, releasefile))
-            os.rename("%s/%s" % (release_dir, releasefile), releasefile)
+            print(f"moving file: {release_dir}/{releasefile}")
+            os.rename(f"{release_dir}/{releasefile}", releasefile)
         os.rmdir(release_dir)
     except Exception:
         exc = sys.exc_info()[1]
@@ -524,7 +512,7 @@ def make_package(distro, build_os, arch, spec, srcdir):
     # directory, so the debian directory is needed in all cases (and
     # innocuous in the debianoids' sdirs).
     for pkgdir in ["debian", "rpm"]:
-        print("Copying packaging files from %s to %s" % ("%s/%s" % (srcdir, pkgdir), sdir))
+        print(f"Copying packaging files from {srcdir}/{pkgdir} to {sdir}")
         # FIXME: sh-dash-cee is bad. See if tarfile can do this.
         sysassert([
             "sh", "-c",
@@ -557,56 +545,78 @@ def make_deb(distro, build_os, arch, spec, srcdir):
     suffix = spec.suffix()
     sdir = setupdir(distro, build_os, arch, spec)
     if re.search("debian", distro.name()):
-        os.unlink(sdir + "debian/mongod.upstart")
-        os.link(sdir + "debian/mongod.service",
-                sdir + "debian/%s%s-server.mongod.service" % (distro.pkgbase(), suffix))
-        os.unlink(sdir + "debian/init.d")
+        os.unlink(f"{sdir}debian/mongod.upstart")
+        os.link(
+            f"{sdir}debian/mongod.service",
+            sdir + f"debian/{distro.pkgbase()}{suffix}-server.mongod.service",
+        )
+
+        os.unlink(f"{sdir}debian/init.d")
     elif re.search("ubuntu", distro.name()):
-        os.unlink(sdir + "debian/init.d")
+        os.unlink(f"{sdir}debian/init.d")
         if build_os in ("ubuntu1204", "ubuntu1404", "ubuntu1410"):
-            os.link(sdir + "debian/mongod.upstart",
-                    sdir + "debian/%s%s-server.mongod.upstart" % (distro.pkgbase(), suffix))
-            os.unlink(sdir + "debian/mongod.service")
+            os.link(
+                f"{sdir}debian/mongod.upstart",
+                sdir
+                + f"debian/{distro.pkgbase()}{suffix}-server.mongod.upstart",
+            )
+
+            os.unlink(f"{sdir}debian/mongod.service")
         else:
-            os.link(sdir + "debian/mongod.service",
-                    sdir + "debian/%s%s-server.mongod.service" % (distro.pkgbase(), suffix))
-            os.unlink(sdir + "debian/mongod.upstart")
+            os.link(
+                f"{sdir}debian/mongod.service",
+                sdir
+                + f"debian/{distro.pkgbase()}{suffix}-server.mongod.service",
+            )
+
+            os.unlink(f"{sdir}debian/mongod.upstart")
     else:
         raise Exception("unknown debianoid flavor: not debian or ubuntu?")
     # Rewrite the control and rules files
-    write_debian_changelog(sdir + "debian/changelog", spec, srcdir)
+    write_debian_changelog(f"{sdir}debian/changelog", spec, srcdir)
     distro_arch = distro.archname(arch)
-    sysassert([
-        "cp", "-v", srcdir + "debian/%s%s.control" % (distro.pkgbase(), suffix),
-        sdir + "debian/control"
-    ])
-    sysassert([
-        "cp", "-v", srcdir + "debian/%s%s.rules" % (distro.pkgbase(), suffix), sdir + "debian/rules"
-    ])
+    sysassert(
+        [
+            "cp",
+            "-v",
+            srcdir + f"debian/{distro.pkgbase()}{suffix}.control",
+            f"{sdir}debian/control",
+        ]
+    )
+
+    sysassert(
+        [
+            "cp",
+            "-v",
+            srcdir + f"debian/{distro.pkgbase()}{suffix}.rules",
+            f"{sdir}debian/rules",
+        ]
+    )
+
 
     # old non-server-package postinst will be hanging around for old versions
     #
-    if os.path.exists(sdir + "debian/postinst"):
-        os.unlink(sdir + "debian/postinst")
+    if os.path.exists(f"{sdir}debian/postinst"):
+        os.unlink(f"{sdir}debian/postinst")
 
     # copy our postinst files
     #
     sysassert(["sh", "-c", "cp -v \"%sdebian/\"*.postinst \"%sdebian/\"" % (srcdir, sdir)])
 
-    with open(sdir + "debian/substvars", "w") as fh:
+    with open(f"{sdir}debian/substvars", "w") as fh:
         # Empty for now. This makes it easier to add substvars to packages
         # later on if we need it.
         fh.write("\n")
 
-    ensure_dir(sdir + "debian/source/format")
-    with open(sdir + "debian/source/format", "w") as fh:
+    ensure_dir(f"{sdir}debian/source/format")
+    with open(f"{sdir}debian/source/format", "w") as fh:
         fh.write("1.0\n")
 
     # Do the packaging.
     oldcwd = os.getcwd()
     try:
         os.chdir(sdir)
-        sysassert(["dpkg-buildpackage", "-uc", "-us", "-a" + distro_arch])
+        sysassert(["dpkg-buildpackage", "-uc", "-us", f"-a{distro_arch}"])
     finally:
         os.chdir(oldcwd)
     repo_dir = distro.repodir(arch, build_os, spec)
@@ -622,7 +632,7 @@ def make_deb_repo(repo, distro, build_os):
     # Note: the Debian repository Packages files must be generated
     # very carefully in order to be usable.
     oldpwd = os.getcwd()
-    os.chdir(repo + "../../../../../../")
+    os.chdir(f"{repo}../../../../../../")
     try:
         dirs = {
             os.path.dirname(deb)[2:]
@@ -630,10 +640,10 @@ def make_deb_repo(repo, distro, build_os):
         }
         for directory in dirs:
             st = backtick(["dpkg-scanpackages", directory, "/dev/null"])
-            with open(directory + "/Packages", "wb") as fh:
+            with open(f"{directory}/Packages", "wb") as fh:
                 fh.write(st)
-            bt = backtick(["gzip", "-9c", directory + "/Packages"])
-            with open(directory + "/Packages.gz", "wb") as fh:
+            bt = backtick(["gzip", "-9c", f"{directory}/Packages"])
+            with open(f"{directory}/Packages.gz", "wb") as fh:
                 fh.write(bt)
     finally:
         os.chdir(oldpwd)
@@ -648,12 +658,12 @@ Architectures: amd64 arm64 s390x
 Components: %s
 Description: MongoDB packages
 """ % (distro.repo_os_version(build_os), distro.repo_os_version(build_os), distro.repo_component())
-    if os.path.exists(repo + "../../Release"):
-        os.unlink(repo + "../../Release")
-    if os.path.exists(repo + "../../Release.gpg"):
-        os.unlink(repo + "../../Release.gpg")
+    if os.path.exists(f"{repo}../../Release"):
+        os.unlink(f"{repo}../../Release")
+    if os.path.exists(f"{repo}../../Release.gpg"):
+        os.unlink(f"{repo}../../Release.gpg")
     oldpwd = os.getcwd()
-    os.chdir(repo + "../../")
+    os.chdir(f"{repo}../../")
     s2 = backtick(["apt-ftparchive", "release", "."])
     try:
         with open("Release", 'wb') as fh:
@@ -663,7 +673,7 @@ Description: MongoDB packages
         os.chdir(oldpwd)
 
 
-def move_repos_into_place(src, dst):  # pylint: disable=too-many-branches
+def move_repos_into_place(src, dst):    # pylint: disable=too-many-branches
     """Move the repos into place."""
     # Find all the stuff in src/*, move it to a freshly-created
     # directory beside dst, then play some games with symlinks so that
@@ -680,15 +690,13 @@ def move_repos_into_place(src, dst):  # pylint: disable=too-many-branches
             break
         except OSError:
             exc = sys.exc_info()[1]
-            if exc.errno == errno.EEXIST:
-                pass
-            else:
+            if exc.errno != errno.EEXIST:
                 raise exc
         i = i + 1
 
     # Put the stuff in our new directory.
     for src_file in os.listdir(src):
-        sysassert(["cp", "-rv", src + "/" + src_file, dname])
+        sysassert(["cp", "-rv", f"{src}/{src_file}", dname])
 
     # Make a symlink to the new directory; the symlink will be renamed
     # to dst shortly.
@@ -700,9 +708,7 @@ def move_repos_into_place(src, dst):  # pylint: disable=too-many-branches
             break
         except OSError:  # as exc: # Python >2.5
             exc = sys.exc_info()[1]
-            if exc.errno == errno.EEXIST:
-                pass
-            else:
+            if exc.errno != errno.EEXIST:
                 raise exc
         i = i + 1
 
@@ -718,14 +724,12 @@ def move_repos_into_place(src, dst):  # pylint: disable=too-many-branches
                 break
             except OSError:  # as exc: # Python >2.5
                 exc = sys.exc_info()[1]
-                if exc.errno == errno.EEXIST:
-                    pass
-                else:
+                if exc.errno != errno.EEXIST:
                     raise exc
 
     os.rename(tmpnam, dst)
     if oldnam:
-        os.rename(oldnam, dst + ".old")
+        os.rename(oldnam, f"{dst}.old")
 
 
 def write_debian_changelog(path, spec, srcdir):
@@ -734,36 +738,47 @@ def write_debian_changelog(path, spec, srcdir):
     os.chdir(srcdir)
     preamble = ""
     try:
-        sb = preamble + backtick([
-            "sh", "-c",
-            "git archive %s debian/changelog | tar xOf -" % spec.metadata_gitspec()
-        ]).decode('utf-8')
+        sb = preamble + backtick(
+            [
+                "sh",
+                "-c",
+                f"git archive {spec.metadata_gitspec()} debian/changelog | tar xOf -",
+            ]
+        ).decode('utf-8')
+
     finally:
         os.chdir(oldcwd)
     lines = sb.split("\n")
     # If the first line starts with "mongodb", it's not a revision
     # preamble, and so frob the version number.
-    lines[0] = re.sub("^mongodb \\(.*\\)", "mongodb (%s)" % (spec.pversion(Distro("debian"))),
-                      lines[0])
+    lines[0] = re.sub(
+        "^mongodb \\(.*\\)",
+        f'mongodb ({spec.pversion(Distro("debian"))})',
+        lines[0],
+    )
+
     # Rewrite every changelog entry starting in mongodb<space>
-    lines = [re.sub("^mongodb ", "mongodb%s " % (spec.suffix()), line) for line in lines]
+    lines = [
+        re.sub("^mongodb ", f"mongodb{spec.suffix()} ", line) for line in lines
+    ]
+
     lines = [re.sub("^  --", " --", line) for line in lines]
     sb = "\n".join(lines)
     with open(path, 'w') as fh:
         fh.write(sb)
 
 
-def make_rpm(distro, build_os, arch, spec, srcdir):  # pylint: disable=too-many-locals
+def make_rpm(distro, build_os, arch, spec, srcdir):    # pylint: disable=too-many-locals
     """Create the RPM specfile."""
     suffix = spec.suffix()
     sdir = setupdir(distro, build_os, arch, spec)
 
-    specfile = srcdir + "rpm/mongodb%s.spec" % suffix
+    specfile = srcdir + f"rpm/mongodb{suffix}.spec"
     init_spec = specfile.replace(".spec", "-init.spec")
 
     # The Debian directory is here for the manpages so we we need to remove the service file
     # from it so that RPM packages don't end up with the Debian file.
-    os.unlink(sdir + "debian/mongod.service")
+    os.unlink(f"{sdir}debian/mongod.service")
 
     # Swap out systemd files, different systemd spec files, and init scripts as needed based on
     # underlying os version. Arranged so that new distros moving forward automatically use
@@ -771,8 +786,8 @@ def make_rpm(distro, build_os, arch, spec, srcdir):  # pylint: disable=too-many-
     # distros.
     #
     if distro.name() == "suse" and distro.repo_os_version(build_os) in ("10", "11"):
-        os.unlink(sdir + "rpm/init.d-mongod")
-        os.link(sdir + "rpm/init.d-mongod.suse", sdir + "rpm/init.d-mongod")
+        os.unlink(f"{sdir}rpm/init.d-mongod")
+        os.link(f"{sdir}rpm/init.d-mongod.suse", f"{sdir}rpm/init.d-mongod")
 
         os.unlink(specfile)
         os.link(init_spec, specfile)
@@ -783,22 +798,27 @@ def make_rpm(distro, build_os, arch, spec, srcdir):  # pylint: disable=too-many-
         os.unlink(specfile)
         os.link(init_spec, specfile)
 
-    topdir = ensure_dir('%s/rpmbuild/%s/' % (os.getcwd(), build_os))
+    topdir = ensure_dir(f'{os.getcwd()}/rpmbuild/{build_os}/')
     for subdir in ["BUILD", "RPMS", "SOURCES", "SPECS", "SRPMS"]:
-        ensure_dir("%s/%s/" % (topdir, subdir))
+        ensure_dir(f"{topdir}/{subdir}/")
     distro_arch = distro.archname(arch)
 
     # Places the RPM Spec file where it's expected for the rpmbuild execution later.
-    shutil.copy(specfile, topdir + "SPECS")
+    shutil.copy(specfile, f"{topdir}SPECS")
 
     oldcwd = os.getcwd()
-    os.chdir(sdir + "/../")
+    os.chdir(f"{sdir}/../")
     try:
-        sysassert([
-            "tar", "-cpzf",
-            topdir + "SOURCES/mongodb%s-%s.tar.gz" % (suffix, spec.pversion(distro)),
-            os.path.basename(os.path.dirname(sdir))
-        ])
+        sysassert(
+            [
+                "tar",
+                "-cpzf",
+                topdir
+                + f"SOURCES/mongodb{suffix}-{spec.pversion(distro)}.tar.gz",
+                os.path.basename(os.path.dirname(sdir)),
+            ]
+        )
+
     finally:
         os.chdir(oldcwd)
     # Do the build.
@@ -825,8 +845,14 @@ def make_rpm(distro, build_os, arch, spec, srcdir):  # pylint: disable=too-many-
             os.path.join(topdir, "BUILDROOT"),
         ])
 
-    sysassert(["rpmbuild", "-ba", "--target", distro_arch] + flags +
-              ["%s/SPECS/mongodb%s.spec" % (topdir, suffix)])
+    sysassert(
+        (
+            ["rpmbuild", "-ba", "--target", distro_arch]
+            + flags
+            + [f"{topdir}/SPECS/mongodb{suffix}.spec"]
+        )
+    )
+
     repo_dir = distro.repodir(arch, build_os, spec)
     ensure_dir(repo_dir)
     # FIXME: see if some combination of shutil.copy<hoohah> and glob
@@ -838,7 +864,7 @@ def make_rpm(distro, build_os, arch, spec, srcdir):  # pylint: disable=too-many-
 def make_rpm_repo(repo):
     """Make the RPM repo."""
     oldpwd = os.getcwd()
-    os.chdir(repo + "../")
+    os.chdir(f"{repo}../")
     try:
         sysassert(["createrepo", "."])
     finally:
@@ -852,9 +878,7 @@ def ensure_dir(filename):
         os.makedirs(dirpart)
     except OSError:  # as exc: # Python >2.5
         exc = sys.exc_info()[1]
-        if exc.errno == errno.EEXIST:
-            pass
-        else:
+        if exc.errno != errno.EEXIST:
             raise exc
     return filename
 
@@ -862,7 +886,7 @@ def ensure_dir(filename):
 def is_valid_file(parser, filename):
     """Check if file exists, and return the filename."""
     if not os.path.exists(filename):
-        parser.error("The file %s does not exist!" % filename)
+        parser.error(f"The file {filename} does not exist!")
         return None
     return filename
 

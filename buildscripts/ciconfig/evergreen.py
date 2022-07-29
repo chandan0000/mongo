@@ -23,7 +23,9 @@ def parse_evergreen_file(path, evergreen_binary="evergreen"):
     if evergreen_binary:
         if not distutils.spawn.find_executable(evergreen_binary):
             raise EnvironmentError(
-                "Executable '{}' does not exist or is not in the PATH.".format(evergreen_binary))
+                f"Executable '{evergreen_binary}' does not exist or is not in the PATH."
+            )
+
 
         # Call 'evergreen evaluate path' to pre-process the project configuration file.
         cmd = runcommand.RunCommand(evergreen_binary)
@@ -31,7 +33,7 @@ def parse_evergreen_file(path, evergreen_binary="evergreen"):
         cmd.add_file(path)
         error_code, output = cmd.execute()
         if error_code:
-            raise RuntimeError("Unable to evaluate {}: {}".format(path, output))
+            raise RuntimeError(f"Unable to evaluate {path}: {output}")
         config = yaml.safe_load(output)
     else:
         with open(path, "r") as fstream:
@@ -94,7 +96,7 @@ class EvergreenProjectConfig(object):  # pylint: disable=too-many-instance-attri
 
     def get_task_names_by_tag(self, tag):
         """Return the list of tasks that have the given tag."""
-        return list(task.name for task in self.tasks if tag in task.tags)
+        return [task.name for task in self.tasks if tag in task.tags]
 
 
 class Task(object):
@@ -116,10 +118,14 @@ class Task(object):
 
     def find_func_command(self, func_command):
         """Return the 'func_command' if found, or None."""
-        for command in self.raw.get("commands", []):
-            if command.get("func") == func_command:
-                return command
-        return None
+        return next(
+            (
+                command
+                for command in self.raw.get("commands", [])
+                if command.get("func") == func_command
+            ),
+            None,
+        )
 
     @property
     def generate_resmoke_tasks_command(self):
@@ -200,11 +206,10 @@ class Task(object):
 
         Raise an exception if the --suites options contains more than one suite name.
         """
-        args = self.resmoke_args
-        if args:
+        if args := self.resmoke_args:
             suites = ResmokeArgs.get_arg(args, "suites")
             if suites and "," in suites:
-                raise RuntimeError("More than one resmoke suite discovered in {}".format(suites))
+                raise RuntimeError(f"More than one resmoke suite discovered in {suites}")
             return suites
         return None
 
@@ -250,9 +255,15 @@ class Variant(object):
             task_name = task.get("name")
             if task_name in task_group_map:
                 # A task in conf_dict may be a task_group, containing a list of tasks.
-                for task_in_group in task_group_map.get(task_name).tasks:
-                    self.tasks.append(
-                        VariantTask(task_map.get(task_in_group), task.get("distros", run_on), self))
+                self.tasks.extend(
+                    VariantTask(
+                        task_map.get(task_in_group),
+                        task.get("distros", run_on),
+                        self,
+                    )
+                    for task_in_group in task_group_map.get(task_name).tasks
+                )
+
             else:
                 self.tasks.append(
                     VariantTask(task_map.get(task["name"]), task.get("distros", run_on), self))
@@ -313,10 +324,7 @@ class Variant(object):
 
         Return None if this variant does not run the task.
         """
-        for task in self.tasks:
-            if task.name == task_name:
-                return task
-        return None
+        return next((task for task in self.tasks if task.name == task_name), None)
 
     def __str__(self):
         return self.name
@@ -344,8 +352,7 @@ class Variant(object):
 
     def is_asan_build(self) -> bool:
         """Determine if this task is an ASAN build."""
-        san_options = self.expansion("san_options")
-        if san_options:
+        if san_options := self.expansion("san_options"):
             return ASAN_SIGNATURE in san_options
         return False
 
@@ -376,7 +383,7 @@ class VariantTask(Task):
             return None
         elif test_flags is None:
             return self.resmoke_args
-        return "{} {}".format(resmoke_args, test_flags)
+        return f"{resmoke_args} {test_flags}"
 
 
 class ResmokeArgs(object):
@@ -385,12 +392,14 @@ class ResmokeArgs(object):
     @staticmethod
     def _arg_regex(name):
         """Return the regex for a resmoke arg."""
-        return re.compile(r"(?P<name_value>--{}[=\s](?P<value>([(\w+,\w+)\w]+)))".format(name))
+        return re.compile(f"(?P<name_value>--{name}[=\s](?P<value>([(\w+,\w+)\w]+)))")
 
     @staticmethod
     def _arg_regex_inclusive_trailing_whitespace(name):
         """Return the regex for a resmoke arg, including the trailing whitespace if it exists."""
-        return re.compile(r"(?P<name_value>--{}[=\s](?P<value>([(\w+,\w+)\w]+))\s?)".format(name))
+        return re.compile(
+            f"(?P<name_value>--{name}[=\s](?P<value>([(\w+,\w+)\w]+))\s?)"
+        )
 
     @staticmethod
     def _get_first_match(resmoke_args, name, group_name=None, include_trailing_space=False):
@@ -401,9 +410,11 @@ class ResmokeArgs(object):
         if not matches:
             return None
         if len(matches) > 1:
-            raise RuntimeError("More than one match for --{} discovered in {}".format(
-                name, resmoke_args))
-        return re.search(regex, resmoke_args).group(group_name)
+            raise RuntimeError(
+                f"More than one match for --{name} discovered in {resmoke_args}"
+            )
+
+        return re.search(regex, resmoke_args)[group_name]
 
     @staticmethod
     def get_arg(resmoke_args, name):
@@ -419,11 +430,12 @@ class ResmokeArgs(object):
 
         Raise an exception in the case there is more than one occurrence of '--name'.
         """
-        name_value = ResmokeArgs._get_first_match(resmoke_args, name, "name_value")
-        if name_value:
-            new_name_value = "--{}={}".format(name, value)
+        if name_value := ResmokeArgs._get_first_match(
+            resmoke_args, name, "name_value"
+        ):
+            new_name_value = f"--{name}={value}"
             return resmoke_args.replace(name_value, new_name_value)
-        return "{} --{}={}".format(resmoke_args, name, value)
+        return f"{resmoke_args} --{name}={value}"
 
     @staticmethod
     def remove_arg(resmoke_args: str, name: str):
@@ -436,8 +448,8 @@ class ResmokeArgs(object):
         :param name: The name of the arg to be removed.
         :return: New resmoke args with the arg removed.
         """
-        name_value = ResmokeArgs._get_first_match(resmoke_args, name, "name_value",
-                                                  include_trailing_space=True)
-        if name_value:
+        if name_value := ResmokeArgs._get_first_match(
+            resmoke_args, name, "name_value", include_trailing_space=True
+        ):
             return resmoke_args.replace(name_value, "")
         return resmoke_args

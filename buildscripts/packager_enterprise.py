@@ -61,7 +61,7 @@ class EnterpriseSpec(packager.Spec):
 class EnterpriseDistro(packager.Distro):
     """EnterpriseDistro class."""
 
-    def repodir(self, arch, build_os, spec):  # noqa: D406,D407,D412,D413
+    def repodir(self, arch, build_os, spec):    # noqa: D406,D407,D412,D413
         """Return the directory where we'll place the package files.
 
         This is for (distro, distro_version) in that distro's preferred repository
@@ -98,55 +98,45 @@ class EnterpriseDistro(packager.Distro):
 
         repo_directory = ""
 
-        if spec.is_pre_release():
-            repo_directory = "testing"
-        else:
-            repo_directory = spec.branch()
-
+        repo_directory = "testing" if spec.is_pre_release() else spec.branch()
         if re.search("^(debian|ubuntu)", self.dname):
-            return "repo/apt/%s/dists/%s/mongodb-enterprise/%s/%s/binary-%s/" % (
-                self.dname, self.repo_os_version(build_os), repo_directory, self.repo_component(),
-                self.archname(arch))
+            return f"repo/apt/{self.dname}/dists/{self.repo_os_version(build_os)}/mongodb-enterprise/{repo_directory}/{self.repo_component()}/binary-{self.archname(arch)}/"
+
         elif re.search("(redhat|fedora|centos|amazon)", self.dname):
-            return "repo/yum/%s/%s/mongodb-enterprise/%s/%s/RPMS/" % (
-                self.dname, self.repo_os_version(build_os), repo_directory, self.archname(arch))
+            return f"repo/yum/{self.dname}/{self.repo_os_version(build_os)}/mongodb-enterprise/{repo_directory}/{self.archname(arch)}/RPMS/"
+
         elif re.search("(suse)", self.dname):
-            return "repo/zypper/%s/%s/mongodb-enterprise/%s/%s/RPMS/" % (
-                self.dname, self.repo_os_version(build_os), repo_directory, self.archname(arch))
+            return f"repo/zypper/{self.dname}/{self.repo_os_version(build_os)}/mongodb-enterprise/{repo_directory}/{self.archname(arch)}/RPMS/"
+
         else:
             raise Exception("BUG: unsupported platform?")
 
-    def build_os(self, arch):  # pylint: disable=too-many-branches
+    def build_os(self, arch):    # pylint: disable=too-many-branches
         """Return the build os label in the binary package to download.
 
         The labels "rhel57", "rhel62", "rhel67", "rhel70", "rhel80" are for redhat,
         the others are delegated to the super class.
         """
         # pylint: disable=too-many-return-statements
-        if arch == "ppc64le":
+        if arch == "aarch64":
+            if self.dname == 'redhat':
+                return ["rhel82"]
+            else:
+                return ["amazon2"] if self.dname == 'amazon2' else []
+        elif arch == "arm64":
+            if self.dname == 'ubuntu':
+                return ["ubuntu1804", "ubuntu2004"]
+        elif arch == "ppc64le":
             if self.dname == 'ubuntu':
                 return ["ubuntu1604", "ubuntu1804"]
-            if self.dname == 'redhat':
-                return ["rhel71", "rhel81"]
-            return []
-        if arch == "s390x":
+            else:
+                return ["rhel71", "rhel81"] if self.dname == 'redhat' else []
+        elif arch == "s390x":
             if self.dname == 'redhat':
                 return ["rhel67", "rhel72"]
             if self.dname == 'suse':
                 return ["suse11", "suse12", "suse15"]
-            if self.dname == 'ubuntu':
-                return ["ubuntu1604", "ubuntu1804"]
-            return []
-        if arch == "arm64":
-            if self.dname == 'ubuntu':
-                return ["ubuntu1804", "ubuntu2004"]
-        if arch == "aarch64":
-            if self.dname == 'redhat':
-                return ["rhel82"]
-            if self.dname == 'amazon2':
-                return ["amazon2"]
-            return []
-
+            return ["ubuntu1604", "ubuntu1804"] if self.dname == 'ubuntu' else []
         if re.search("(redhat|fedora|centos)", self.dname):
             return ["rhel80", "rhel70", "rhel62", "rhel57"]
         return super(EnterpriseDistro, self).build_os(arch)
@@ -163,7 +153,7 @@ def main():
     spec = EnterpriseSpec(args.server_version, args.metadata_gitspec, args.release_number)
 
     oldcwd = os.getcwd()
-    srcdir = oldcwd + "/../"
+    srcdir = f"{oldcwd}/../"
 
     # Where to do all of our work. Use a randomly-created directory if one
     # is not passed in.
@@ -171,7 +161,7 @@ def main():
     if prefix is None:
         prefix = tempfile.mkdtemp()
 
-    print("Working in directory %s" % prefix)
+    print(f"Working in directory {prefix}")
 
     os.chdir(prefix)
     try:
@@ -201,7 +191,7 @@ def main():
 
 def tarfile(build_os, arch, spec):
     """Return the location where we store the downloaded tarball for this package."""
-    return "dl/mongodb-linux-%s-enterprise-%s-%s.tar.gz" % (spec.version(), build_os, arch)
+    return f"dl/mongodb-linux-{spec.version()}-enterprise-{build_os}-{arch}.tar.gz"
 
 
 def setupdir(distro, build_os, arch, spec):
@@ -212,8 +202,7 @@ def setupdir(distro, build_os, arch, spec):
     # the following format string is unclear, an example setupdir
     # would be dst/x86_64/debian-sysvinit/wheezy/mongodb-org-unstable/
     # or dst/x86_64/redhat/rhel57/mongodb-org-unstable/
-    return "dst/%s/%s/%s/%s%s-%s/" % (arch, distro.name(), build_os, distro.pkgbase(),
-                                      spec.suffix(), spec.pversion(distro))
+    return f"dst/{arch}/{distro.name()}/{build_os}/{distro.pkgbase()}{spec.suffix()}-{spec.pversion(distro)}/"
 
 
 def unpack_binaries_into(build_os, arch, spec, where):
@@ -226,10 +215,13 @@ def unpack_binaries_into(build_os, arch, spec, where):
     # thing and chdir into where and run tar there.
     os.chdir(where)
     try:
-        packager.sysassert(["tar", "xvzf", rootdir + "/" + tarfile(build_os, arch, spec)])
+        packager.sysassert(
+            ["tar", "xvzf", f"{rootdir}/{tarfile(build_os, arch, spec)}"]
+        )
+
         release_dir = glob('mongodb-linux-*')[0]
         for releasefile in "bin", "snmp", "LICENSE-Enterprise.txt", "README", "THIRD-PARTY-NOTICES", "MPL-2":
-            os.rename("%s/%s" % (release_dir, releasefile), releasefile)
+            os.rename(f"{release_dir}/{releasefile}", releasefile)
         os.rmdir(release_dir)
     except Exception:
         exc = sys.exc_info()[1]
@@ -250,7 +242,7 @@ def make_package(distro, build_os, arch, spec, srcdir):
     # directory, so the debian directory is needed in all cases (and
     # innocuous in the debianoids' sdirs).
     for pkgdir in ["debian", "rpm"]:
-        print("Copying packaging files from %s to %s" % ("%s/%s" % (srcdir, pkgdir), sdir))
+        print(f"Copying packaging files from {srcdir}/{pkgdir} to {sdir}")
         # FIXME: sh-dash-cee is bad. See if tarfile can do this.
         packager.sysassert([
             "sh", "-c",
@@ -280,7 +272,7 @@ def make_deb_repo(repo, distro, build_os):
     # Note: the Debian repository Packages files must be generated
     # very carefully in order to be usable.
     oldpwd = os.getcwd()
-    os.chdir(repo + "../../../../../../")
+    os.chdir(f"{repo}../../../../../../")
     try:
         dirs = {
             os.path.dirname(deb)[2:]
@@ -288,10 +280,10 @@ def make_deb_repo(repo, distro, build_os):
         }
         for directory in dirs:
             st = packager.backtick(["dpkg-scanpackages", directory, "/dev/null"])
-            with open(directory + "/Packages", "wb") as fh:
+            with open(f"{directory}/Packages", "wb") as fh:
                 fh.write(st)
-            bt = packager.backtick(["gzip", "-9c", directory + "/Packages"])
-            with open(directory + "/Packages.gz", "wb") as fh:
+            bt = packager.backtick(["gzip", "-9c", f"{directory}/Packages"])
+            with open(f"{directory}/Packages.gz", "wb") as fh:
                 fh.write(bt)
     finally:
         os.chdir(oldpwd)
@@ -306,12 +298,12 @@ Architectures: amd64 ppc64el s390x arm64
 Components: %s
 Description: MongoDB packages
 """ % (distro.repo_os_version(build_os), distro.repo_os_version(build_os), distro.repo_component())
-    if os.path.exists(repo + "../../Release"):
-        os.unlink(repo + "../../Release")
-    if os.path.exists(repo + "../../Release.gpg"):
-        os.unlink(repo + "../../Release.gpg")
+    if os.path.exists(f"{repo}../../Release"):
+        os.unlink(f"{repo}../../Release")
+    if os.path.exists(f"{repo}../../Release.gpg"):
+        os.unlink(f"{repo}../../Release.gpg")
     oldpwd = os.getcwd()
-    os.chdir(repo + "../../")
+    os.chdir(f"{repo}../../")
     s2 = packager.backtick(["apt-ftparchive", "release", "."])
     try:
         with open("Release", 'wb') as fh:
@@ -321,7 +313,7 @@ Description: MongoDB packages
         os.chdir(oldpwd)
 
 
-def move_repos_into_place(src, dst):  # pylint: disable=too-many-branches
+def move_repos_into_place(src, dst):    # pylint: disable=too-many-branches
     """Move the repos into place."""
     # Find all the stuff in src/*, move it to a freshly-created
     # directory beside dst, then play some games with symlinks so that
@@ -338,15 +330,13 @@ def move_repos_into_place(src, dst):  # pylint: disable=too-many-branches
             break
         except OSError:
             exc = sys.exc_info()[1]
-            if exc.errno == errno.EEXIST:
-                pass
-            else:
+            if exc.errno != errno.EEXIST:
                 raise exc
         idx = idx + 1
 
     # Put the stuff in our new directory.
     for src_file in os.listdir(src):
-        packager.sysassert(["cp", "-rv", src + "/" + src_file, dname])
+        packager.sysassert(["cp", "-rv", f"{src}/{src_file}", dname])
 
     # Make a symlink to the new directory; the symlink will be renamed
     # to dst shortly.
@@ -358,9 +348,7 @@ def move_repos_into_place(src, dst):  # pylint: disable=too-many-branches
             break
         except OSError:  # as exc: # Python >2.5
             exc = sys.exc_info()[1]
-            if exc.errno == errno.EEXIST:
-                pass
-            else:
+            if exc.errno != errno.EEXIST:
                 raise exc
         idx = idx + 1
 
@@ -376,14 +364,12 @@ def move_repos_into_place(src, dst):  # pylint: disable=too-many-branches
                 break
             except OSError:  # as exc: # Python >2.5
                 exc = sys.exc_info()[1]
-                if exc.errno == errno.EEXIST:
-                    pass
-                else:
+                if exc.errno != errno.EEXIST:
                     raise exc
 
     os.rename(tmpnam, dst)
     if oldnam:
-        os.rename(oldnam, dst + ".old")
+        os.rename(oldnam, f"{dst}.old")
 
 
 if __name__ == "__main__":

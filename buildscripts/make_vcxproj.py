@@ -72,20 +72,12 @@ VCXPROJ_MSVC_DEFAULT_VERSION = "14.1"  # Visual Studio 2017
 
 def get_defines(args):
     """Parse a compiler argument list looking for defines."""
-    ret = set()
-    for arg in args:
-        if arg.startswith('/D'):
-            ret.add(arg[2:])
-    return ret
+    return {arg[2:] for arg in args if arg.startswith('/D')}
 
 
 def get_includes(args):
     """Parse a compiler argument list looking for includes."""
-    ret = set()
-    for arg in args:
-        if arg.startswith('/I'):
-            ret.add(arg[2:])
-    return ret
+    return {arg[2:] for arg in args if arg.startswith('/I')}
 
 
 def _read_vcxproj(file_name):
@@ -148,10 +140,7 @@ class ProjFileGenerator(object):  # pylint: disable=too-many-instance-attributes
     def __init__(self, target, vs_version):
         """Initialize ProjFileGenerator."""
         # we handle DEBUG in the vcxproj header:
-        self.common_defines = set()
-        self.common_defines.add("DEBUG")
-        self.common_defines.add("_DEBUG")
-
+        self.common_defines = {"DEBUG", "_DEBUG"}
         self.includes = set()
         self.target = target
         self.compiles = []
@@ -160,7 +149,7 @@ class ProjFileGenerator(object):  # pylint: disable=too-many-instance-attributes
         self.vcxproj = None
         self.filters = None
         self.all_defines = set(self.common_defines)
-        self.vcxproj_file_name = self.target + ".vcxproj"
+        self.vcxproj_file_name = f"{self.target}.vcxproj"
         self.tools_version = VCXPROJ_TOOLSVERSION[vs_version]
         self.platform_toolset = VCXPROJ_PLATFORM_TOOLSET[vs_version]
         self.windows_target_sdk = VCXPROJ_WINDOWS_TARGET_SDK[vs_version]
@@ -198,8 +187,7 @@ class ProjFileGenerator(object):  # pylint: disable=too-many-instance-attributes
 
         self.vcxproj.write("  <ItemGroup>\n")
         for command in self.compiles:
-            defines = command["defines"].difference(common_defines)
-            if defines:
+            if defines := command["defines"].difference(common_defines):
                 self.vcxproj.write("    <ClCompile Include=\"" + command["file"] +
                                    "\"><PreprocessorDefinitions>" + ';'.join(defines) +
                                    ";%(PreprocessorDefinitions)" +
@@ -208,7 +196,7 @@ class ProjFileGenerator(object):  # pylint: disable=too-many-instance-attributes
                 self.vcxproj.write("    <ClCompile Include=\"" + command["file"] + "\" />\n")
         self.vcxproj.write("  </ItemGroup>\n")
 
-        self.filters = open(self.target + ".vcxproj.filters", "w")
+        self.filters = open(f"{self.target}.vcxproj.filters", "w")
         self.filters.write("<?xml version='1.0' encoding='utf-8'?>\n")
         self.filters.write("<Project ToolsVersion='14.0' " +
                            "xmlns='http://schemas.microsoft.com/developer/msbuild/2003'>\n")
@@ -232,7 +220,7 @@ class ProjFileGenerator(object):  # pylint: disable=too-many-instance-attributes
     def __parse_cl_line(self, line):
         """Parse a compiler line."""
         # Get the file we are compilong
-        file_name = re.search(r"/c ([\w\\.-]+) ", line).group(1)
+        file_name = re.search(r"/c ([\w\\.-]+) ", line)[1]
 
         # Skip files made by scons for configure testing
         if "sconf_temp" in file_name:
@@ -242,10 +230,10 @@ class ProjFileGenerator(object):  # pylint: disable=too-many-instance-attributes
 
         args = line.split(' ')
 
-        file_defines = set()
-        for arg in get_defines(args):
-            if arg not in self.common_defines:
-                file_defines.add(arg)
+        file_defines = {
+            arg for arg in get_defines(args) if arg not in self.common_defines
+        }
+
         self.all_defines = self.all_defines.union(file_defines)
 
         for arg in get_includes(args):
@@ -257,32 +245,20 @@ class ProjFileGenerator(object):  # pylint: disable=too-many-instance-attributes
     def __is_header(name):
         """Return True if this a header file."""
         headers = [".h", ".hpp", ".hh", ".hxx"]
-        for header in headers:
-            if name.endswith(header):
-                return True
-        return False
+        return any(name.endswith(header) for header in headers)
 
     @staticmethod
     def __cpp_file(name):
         """Return True if this a C++ header or source file."""
         file_exts = [".cpp", ".c", ".cxx", ".h", ".hpp", ".hh", ".hxx"]
         file_ext = os.path.splitext(name)[1]
-        if file_ext in file_exts:
-            return True
-        return False
+        return file_ext in file_exts
 
-    def __write_filters(self):  # pylint: disable=too-many-branches
+    def __write_filters(self):    # pylint: disable=too-many-branches
         """Generate the vcxproj.filters file."""
-        # 1. get a list of directories for all the files
-        # 2. get all the C++ files in each of these dirs
-        # 3. Output these lists of files to vcxproj and vcxproj.headers
-        # Note: order of these lists does not matter, VS will sort them anyway
-        dirs = set()
         scons_files = set()
 
-        for file_name in self.files:
-            dirs.add(os.path.dirname(file_name))
-
+        dirs = {os.path.dirname(file_name) for file_name in self.files}
         base_dirs = set()
         for directory in dirs:
             if not os.path.exists(directory):

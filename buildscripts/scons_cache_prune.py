@@ -100,7 +100,7 @@ def prune_cache(cache_path, cache_size_gb, clean_ratio):
                 return False
 
             cache_item = contents.pop()
-            to_remove = cache_item.path + ".del"
+            to_remove = f"{cache_item.path}.del"
             try:
                 os.rename(cache_item.path, to_remove)
             except Exception as err:  # pylint: disable=broad-except

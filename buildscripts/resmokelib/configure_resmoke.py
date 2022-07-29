@@ -31,7 +31,7 @@ def validate_and_update_config(parser, args):
 def _validate_options(parser, args):
     """Do preliminary validation on the options and error on any invalid options."""
 
-    if not 'shell_port' in args or not 'shell_conn_string' in args:
+    if 'shell_port' not in args or 'shell_conn_string' not in args:
         return
 
     if args.shell_port is not None and args.shell_conn_string is not None:
@@ -48,14 +48,15 @@ def _validate_options(parser, args):
             "Cannot use --replayFile with additional test files listed on the command line invocation."
         )
 
-    if args.run_all_feature_flag_tests:
-        if not os.path.isfile(ALL_FEATURE_FLAG_FILE):
-            parser.error(
-                "To run tests with all feature flags, the %s file must exist and be placed in"
-                " your working directory. The file can be downloaded from the artifacts tarball"
-                " in Evergreen. Alternatively, if you know which feature flags you want to enable,"
-                " you can use the --additionalFeatureFlags command line argument" %
-                ALL_FEATURE_FLAG_FILE)
+    if args.run_all_feature_flag_tests and not os.path.isfile(
+        ALL_FEATURE_FLAG_FILE
+    ):
+        parser.error(
+            "To run tests with all feature flags, the %s file must exist and be placed in"
+            " your working directory. The file can be downloaded from the artifacts tarball"
+            " in Evergreen. Alternatively, if you know which feature flags you want to enable,"
+            " you can use the --additionalFeatureFlags command line argument" %
+            ALL_FEATURE_FLAG_FILE)
 
     def get_set_param_errors(process_params):
         agg_set_params = collections.defaultdict(list)
@@ -93,7 +94,7 @@ def _validate_options(parser, args):
         parser.error(str(error_msgs))
 
 
-def _validate_config(parser):  # pylint: disable=too-many-branches
+def _validate_config(parser):    # pylint: disable=too-many-branches
     """Do validation on the config settings."""
 
     if _config.REPEAT_TESTS_MAX:
@@ -111,7 +112,7 @@ def _validate_config(parser):  # pylint: disable=too-many-branches
 
     if _config.MIXED_BIN_VERSIONS is not None:
         for version in _config.MIXED_BIN_VERSIONS:
-            if version not in set(['old', 'new']):
+            if version not in {'old', 'new'}:
                 parser.error("Must specify binary versions as 'old' or 'new' in format"
                              " 'version1-version2'")
 

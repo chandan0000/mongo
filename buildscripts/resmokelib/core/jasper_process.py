@@ -41,7 +41,7 @@ class Process(_process.Process):
         """Start the process and the logger pipes for its stdout and stderr."""
         # Add current timestamp to process name since processes may restart
         # within a job.
-        process_name = "{}-{}".format(self.args[0], time.monotonic())
+        process_name = f"{self.args[0]}-{time.monotonic()}"
         logger = get_logger_config(group_id=self.job_num, test_id=self.test_id,
                                    process_name=process_name, prefix=self.logger.name)
         output_opts = self.pb.OutputOptions(loggers=[logger])
@@ -84,8 +84,10 @@ class Process(_process.Process):
                 raise
         else:
             if not val.success:
-                raise OSError("Failed to signal Jasper process with pid {}: {}".format(
-                    self.pid, val.text))
+                raise OSError(
+                    f"Failed to signal Jasper process with pid {self.pid}: {val.text}"
+                )
+
         finally:
             JASPER_PIDS.discard(self.pid)
 

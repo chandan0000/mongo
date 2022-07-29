@@ -33,9 +33,7 @@ def parse_command_line():
     parser.add_argument("--evergreen-file", type=str, default=DEFAULT_EVERGREEN_FILE,
                         help="Location of evergreen file.")
 
-    options = parser.parse_args()
-
-    return options
+    return parser.parse_args()
 
 
 def get_all_task_tags(evg_config):
@@ -89,7 +87,7 @@ def list_all_variants_and_tasks(evg_config):
     for variant in evg_config.variant_names:
         tasks = get_all_tasks(evg_config, variant)
         for task in tasks:
-            print("%s | %s" % (variant, task))
+            print(f"{variant} | {task}")
 
 
 def is_task_tagged(task, tags, filters):
@@ -101,11 +99,9 @@ def is_task_tagged(task, tags, filters):
     :param filters: List of tags that should not belong to the task.
     :return: True if task matches the query.
     """
-    if all(tag in task.tags for tag in tags):
-        if not filters or not any(tag in task.tags for tag in filters):
-            return True
-
-    return False
+    return all(tag in task.tags for tag in tags) and (
+        not filters or all(tag not in task.tags for tag in filters)
+    )
 
 
 def get_tasks_with_tag(evg_config, tags, filters):

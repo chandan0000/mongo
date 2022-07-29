@@ -105,7 +105,7 @@ class RepeatConfig(object):
                 repeat_options += f" --repeatTestsMax={self.repeat_tests_max} "
             return repeat_options
 
-        repeat_suites = self.repeat_tests_num if self.repeat_tests_num else REPEAT_SUITES
+        repeat_suites = self.repeat_tests_num or REPEAT_SUITES
         return f" --repeatSuites={repeat_suites} "
 
     def __repr__(self):
@@ -127,10 +127,7 @@ def is_file_a_test_file(file_path: str) -> bool:
     if os.path.splitext(file_path)[1] != ".js" or not os.path.isfile(file_path):
         return False
 
-    if "jstests" not in file_path:
-        return False
-
-    return True
+    return "jstests" in file_path
 
 
 def find_excludes(selector_file: str) -> Tuple[List, List, List]:
@@ -200,10 +197,7 @@ def _get_task_name(task):
     :param task: task to get name of.
     """
 
-    if task.is_generate_resmoke_task:
-        return task.generated_task_name
-
-    return task.name
+    return task.generated_task_name if task.is_generate_resmoke_task else task.name
 
 
 def _set_resmoke_args(task):

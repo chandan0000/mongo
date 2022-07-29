@@ -50,7 +50,7 @@ def _get_arg_for_field(field):
     # Use the storage type for the constructor argument since the generated code will use std::move.
     member_type = cpp_type_info.get_storage_type()
 
-    return "%s %s" % (member_type, common.camel_case(field.cpp_name))
+    return f"{member_type} {common.camel_case(field.cpp_name)}"
 
 
 def _get_required_parameters(struct):
@@ -68,13 +68,13 @@ class ArgumentInfo(object):
         # type: (str) -> None
         """Create a instance of the ArgumentInfo class by parsing the argument string."""
         parts = arg.split(' ')
-        self.type = ' '.join(parts[0:-1])
+        self.type = ' '.join(parts[:-1])
         self.name = parts[-1]
 
     def __str__(self):
         # type: () -> str
         """Return a formatted argument string."""
-        return "%s %s" % (self.type, self.name)  # type: ignore
+        return f"{self.type} {self.name}"
 
 
 class MethodInfo(object):
@@ -96,22 +96,12 @@ class MethodInfo(object):
     def get_declaration(self):
         # type: () -> str
         """Get a declaration for a method."""
-        pre_modifiers = ''
-        post_modifiers = ''
-        return_type_str = ''
-
-        if self.static:
-            pre_modifiers = 'static '
-
-        if self.const:
-            post_modifiers = ' const'
-
+        pre_modifiers = 'static ' if self.static else ''
+        post_modifiers = ' const' if self.const else ''
         if self.explicit:
             pre_modifiers += 'explicit '
 
-        if self.return_type:
-            return_type_str = self.return_type + ' '
-
+        return_type_str = f'{self.return_type} ' if self.return_type else ''
         return common.template_args(
             "${pre_modifiers}${return_type}${method_name}(${args})${post_modifiers};",
             pre_modifiers=pre_modifiers, return_type=return_type_str, method_name=self.method_name,
@@ -121,15 +111,8 @@ class MethodInfo(object):
         # type: () -> str
         """Get a definition for a method."""
         pre_modifiers = ''
-        post_modifiers = ''
-        return_type_str = ''
-
-        if self.const:
-            post_modifiers = ' const'
-
-        if self.return_type:
-            return_type_str = self.return_type + ' '
-
+        post_modifiers = ' const' if self.const else ''
+        return_type_str = f'{self.return_type} ' if self.return_type else ''
         return common.template_args(
             "${pre_modifiers}${return_type}${class_name}::${method_name}(${args})${post_modifiers}",
             pre_modifiers=pre_modifiers, return_type=return_type_str, class_name=self.class_name,
@@ -377,7 +360,7 @@ def _get_command_type_parameter(command, gen_header=False):
     member_type = cpp_type_info.get_storage_type()
     result = f"{member_type} {common.camel_case(command.command_field.cpp_name)}"
     if not gen_header or '&' in result:
-        result = 'const ' + result
+        result = f'const {result}'
     return result
 
 
@@ -457,7 +440,7 @@ class _CommandWithNamespaceTypeInfo(_CommandBaseTypeInfo):
     def _get_nss_param(gen_header):
         nss_param = 'NamespaceString nss'
         if not gen_header:
-            nss_param = 'const ' + nss_param
+            nss_param = f'const {nss_param}'
         return nss_param
 
     def get_constructor_method(self, gen_header=False):
@@ -518,10 +501,13 @@ class _CommandWithNamespaceTypeInfo(_CommandBaseTypeInfo):
         indented_writer.write_line('invariant(_nss.isEmpty());')
         if self._struct.allow_global_collection_name:
             indented_writer.write_line(
-                '_nss = ctxt.parseNSCollectionRequired(%s, %s, true);' % (db_name, element))
+                f'_nss = ctxt.parseNSCollectionRequired({db_name}, {element}, true);'
+            )
+
         else:
             indented_writer.write_line(
-                '_nss = ctxt.parseNSCollectionRequired(%s, %s, false);' % (db_name, element))
+                f'_nss = ctxt.parseNSCollectionRequired({db_name}, {element}, false);'
+            )
 
 
 class _CommandWithUUIDNamespaceTypeInfo(_CommandBaseTypeInfo):
@@ -538,7 +524,7 @@ class _CommandWithUUIDNamespaceTypeInfo(_CommandBaseTypeInfo):
     def _get_nss_param(gen_header):
         nss_param = 'NamespaceStringOrUUID nssOrUUID'
         if not gen_header:
-            nss_param = 'const ' + nss_param
+            nss_param = f'const {nss_param}'
         return nss_param
 
     def get_constructor_method(self, gen_header=False):
@@ -592,7 +578,9 @@ class _CommandWithUUIDNamespaceTypeInfo(_CommandBaseTypeInfo):
     def gen_namespace_check(self, indented_writer, db_name, element):
         # type: (writer.IndentedTextWriter, str, str) -> None
         indented_writer.write_line('invariant(_nssOrUUID.nss() || _nssOrUUID.uuid());')
-        indented_writer.write_line('_nssOrUUID = ctxt.parseNsOrUUID(%s, %s);' % (db_name, element))
+        indented_writer.write_line(
+            f'_nssOrUUID = ctxt.parseNsOrUUID({db_name}, {element});'
+        )
 
 
 def get_struct_info(struct):

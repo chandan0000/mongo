@@ -216,11 +216,10 @@ class BackendServer:
                 self.current_selected_rows.pop(Path(message['data']['node']))
             else:
                 self.current_selected_rows[Path(message['data']['node'])] = message['data']
+        elif message['isSelected'] and message:
+            self.current_selected_rows[Path(message['data']['node'])] = message['data']
         else:
-            if message['isSelected'] and message:
-                self.current_selected_rows[Path(message['data']['node'])] = message['data']
-            else:
-                self.current_selected_rows.pop(Path(message['data']['node']))
+            self.current_selected_rows.pop(Path(message['data']['node']))
 
         self.socketio.start_background_task(self.send_graph_data)
         self.socketio.start_background_task(self.send_node_infos)
@@ -236,9 +235,11 @@ class BackendServer:
             ga = libdeps.analyzer.LibdepsGraphAnalysis(analysis)
             results = ga.get_results()
 
-            graph_data = []
-            for i, data in enumerate(results):
-                graph_data.append({'id': i, 'type': data, 'value': results[data]})
+            graph_data = [
+                {'id': i, 'type': data, 'value': results[data]}
+                for i, data in enumerate(results)
+            ]
+
             self.socketio.emit("graph_results", graph_data)
 
     def receive_graph_paths(self, message):

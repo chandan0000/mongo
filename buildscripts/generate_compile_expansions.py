@@ -25,7 +25,7 @@ def generate_expansions():
     """
     args = parse_args()
     expansions = {}
-    expansions.update(generate_version_expansions())
+    expansions |= generate_version_expansions()
     expansions.update(generate_scons_cache_expansions())
 
     with open(args.out, "w") as out:
@@ -112,9 +112,7 @@ def match_verstr(verstr):
     doesn't start with "2.3.4" or "2.3.4-rc0", this will return False.
     """
     res = re.match(r'^r?(?:\d+\.\d+\.\d+(?:-rc\d+|-alpha\d+)?)(-.*)?', verstr)
-    if not res:
-        return False
-    return res.groups()
+    return res.groups() if res else False
 
 
 if __name__ == "__main__":

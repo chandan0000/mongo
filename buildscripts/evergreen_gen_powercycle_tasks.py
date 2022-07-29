@@ -30,7 +30,7 @@ def make_config(expansions_file: Any) -> Config:
     current_task_name = expansions.get("task_name", "powercycle")
     task_names = expansions.get("task_names", "powercycle_smoke_skip_compile")
     # Avoid duplicated task names
-    task_names = {task_name for task_name in task_names.split(" ")}
+    task_names = set(task_names.split(" "))
     num_tasks = int(expansions.get("num_tasks", 10))
     timeout_params = {
         "exec_timeout_secs": int(expansions.get("exec_timeout_secs", 7200)),

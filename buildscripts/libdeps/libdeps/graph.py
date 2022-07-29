@@ -92,8 +92,7 @@ class NodeProps(Enum):
 
 def null_progressbar(items):
     """Fake stand-in for normal progressbar."""
-    for item in items:
-        yield item
+    yield from items
 
 
 class LibdepsGraph(networkx.DiGraph):
@@ -123,9 +122,10 @@ class LibdepsGraph(networkx.DiGraph):
         """Get a graph view of direct nonprivate edges."""
 
         def filter_direct_nonprivate_edges(n1, n2):
-            return (self[n1][n2].get(EdgeProps.direct.name) and
-                    (self[n1][n2].get(EdgeProps.visibility.name) == self.get_deptype('Public') or
-                     self[n1][n2].get(EdgeProps.visibility.name) == self.get_deptype('Interface')))
+            return self[n1][n2].get(EdgeProps.direct.name) and self[n1][n2].get(
+                EdgeProps.visibility.name
+            ) in [self.get_deptype('Public'), self.get_deptype('Interface')]
+
 
         return networkx.subgraph_view(self, filter_edge=filter_direct_nonprivate_edges)
 

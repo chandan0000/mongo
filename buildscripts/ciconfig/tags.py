@@ -125,9 +125,7 @@ def getdefault(doc, key, default):
     Return the specified default value otherwise.
     """
     value = doc.get(key)
-    if value is not None:
-        return value
-    return default
+    return value if value is not None else default
 
 
 def setdefault(doc, key, default):

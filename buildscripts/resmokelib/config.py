@@ -204,7 +204,7 @@ class SuiteOptions(_SuiteOptions):
 
                 combined_value = combined_options[field]
                 if combined_value is not cls.INHERIT and combined_value != value:
-                    raise ValueError("Attempted to set '{}' option multiple times".format(field))
+                    raise ValueError(f"Attempted to set '{field}' option multiple times")
                 combined_options[field] = value
 
         if include_tags_list:

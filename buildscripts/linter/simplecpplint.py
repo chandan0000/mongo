@@ -44,10 +44,16 @@ def _make_polyfill_regex():
         'unordered_set',
     ]
 
-    qualified_names = ['boost::' + name + "\\b" for name in polyfill_required_names]
-    qualified_names.extend('std::' + name + "\\b" for name in polyfill_required_names)
+    qualified_names = [
+        f'boost::{name}' + "\\b" for name in polyfill_required_names
+    ]
+
+    qualified_names.extend(
+        f'std::{name}' + "\\b" for name in polyfill_required_names
+    )
+
     qualified_names_regex = '|'.join(qualified_names)
-    return re.compile('(' + qualified_names_regex + ')')
+    return re.compile(f'({qualified_names_regex})')
 
 
 _RE_LINT = re.compile("//.*NOLINT")
@@ -146,7 +152,7 @@ class Linter:
 
             # Relax the rule of commenting generic FCV references for files directly related to FCV
             # implementations.
-            if not "feature_compatibility_version" in self.file_name:
+            if "feature_compatibility_version" not in self.file_name:
                 self._check_for_generic_fcv(linenum)
 
         return self._error_count
@@ -175,7 +181,7 @@ class Linter:
                 self.generic_fcv_comments.append(linenum)
 
             if not in_multi_line_comment:
-                if "/*" in clean_line and not "*/" in clean_line:
+                if "/*" in clean_line and "*/" not in clean_line:
                     in_multi_line_comment = True
                     clean_line = ""
 
@@ -195,7 +201,7 @@ class Linter:
 
     def _check_for_mongo_volatile(self, linenum):
         line = self.clean_lines[linenum]
-        if _RE_VOLATILE.search(line) and not "__asm__" in line:
+        if _RE_VOLATILE.search(line) and "__asm__" not in line:
             self._error(
                 linenum, 'mongodb/volatile',
                 'Illegal use of the volatile storage keyword, use AtomicWord instead '
@@ -203,8 +209,7 @@ class Linter:
 
     def _check_for_mongo_polyfill(self, linenum):
         line = self.clean_lines[linenum]
-        match = _RE_PATTERN_MONGO_POLYFILL.search(line)
-        if match:
+        if match := _RE_PATTERN_MONGO_POLYFILL.search(line):
             self._error(
                 linenum, 'mongodb/polyfill',
                 'Illegal use of banned name from std::/boost:: for "%s", use mongo::stdx:: variant instead'
@@ -248,7 +253,7 @@ class Linter:
 
     def _license_error(self, linenum, msg, category='legal/license'):
         style_url = 'https://github.com/mongodb/mongo/wiki/Server-Code-Style'
-        self._error(linenum, category, '{} See {}'.format(msg, style_url))
+        self._error(linenum, category, f'{msg} See {style_url}')
         return (False, linenum)
 
     def _check_for_server_side_public_license(self):
@@ -263,9 +268,10 @@ class Linter:
             lic_re = re.escape(lic_line).replace(r'\{year\}', r'\d{4}')
             if not re.fullmatch(lic_re, src_line):
                 self._license_error(
-                    linenum, 'Incorrect license header.\n'
-                    '  Expected: "{}"\n'
-                    '  Received: "{}"\n'.format(lic_line, src_line))
+                    linenum,
+                    f'Incorrect license header.\n  Expected: "{lic_line}"\n  Received: "{src_line}"\n',
+                )
+
                 return linenum
 
         # Warn if SSPL appears in Enterprise code, which has a different license.
@@ -311,7 +317,7 @@ class Linter:
 
             # The following files are in the src/mongo/ directory but technically belong
             # in src/third_party/ because their copyright does not belong to MongoDB.
-            files_to_ignore = set([
+            files_to_ignore = {
                 'src/mongo/scripting/mozjs/PosixNSPR.cpp',
                 'src/mongo/shell/linenoise.cpp',
                 'src/mongo/shell/linenoise.h',
@@ -322,7 +328,8 @@ class Linter:
                 'src/mongo/util/md5main.cpp',
                 'src/mongo/util/net/ssl_stream.cpp',
                 'src/mongo/util/scopeguard.h',
-            ])
+            }
+
 
             norm_file_name = self.file_name.replace('\\', '/')
             for file_to_ignore in files_to_ignore:
@@ -360,11 +367,11 @@ def main():
     try:
         error_count = lint_file(args.file)
         if error_count != 0:
-            print('File "{}" failed with {} errors.'.format(args.file, error_count))
+            print(f'File "{args.file}" failed with {error_count} errors.')
             return 1
         return 0
     except Exception as ex:  # pylint: disable=broad-except
-        print('Exception while checking file "{}": {}'.format(args.file, ex))
+        print(f'Exception while checking file "{args.file}": {ex}')
         return 2
 
 

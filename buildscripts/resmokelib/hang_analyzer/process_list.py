@@ -43,8 +43,7 @@ def get_processes(process_ids, interesting_processes, process_match, logger):
 
     if process_ids:
         running_pids = {pidv for (pname, pidv) in all_processes}
-        missing_pids = set(process_ids) - running_pids
-        if missing_pids:
+        if missing_pids := set(process_ids) - running_pids:
             logger.warning("The following requested process ids are not running %s",
                            list(missing_pids))
 
@@ -82,12 +81,12 @@ def _get_lister():
     """Return _ProcessList object for OS."""
     if sys.platform.startswith("linux"):
         ps = _LinuxProcessList()
-    elif sys.platform == "win32" or sys.platform == "cygwin":
+    elif sys.platform in ["win32", "cygwin"]:
         ps = _WindowsProcessList()
     elif sys.platform == "darwin":
         ps = _DarwinProcessList()
     else:
-        raise OSError("Hang analyzer: Unsupported platform: {}".format(sys.platform))
+        raise OSError(f"Hang analyzer: Unsupported platform: {sys.platform}")
 
     return ps
 
@@ -176,7 +175,10 @@ class _LinuxProcessList(_ProcessList):
 def _pname_match(match_type, pname, interesting_processes):
     """Return True if the pname matches an interesting_processes."""
     pname = os.path.splitext(pname)[0]
-    for ip in interesting_processes:
-        if match_type == 'exact' and pname == ip or match_type == 'contains' and ip in pname:
-            return True
-    return False
+    return any(
+        match_type == 'exact'
+        and pname == ip
+        or match_type == 'contains'
+        and ip in pname
+        for ip in interesting_processes
+    )

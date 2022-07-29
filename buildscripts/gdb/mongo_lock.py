@@ -33,11 +33,11 @@ class NonExecutingThread(object):
         return not self == other
 
     def __str__(self):
-        return "Idle Transaction (LockerId {})".format(self.locker_id)
+        return f"Idle Transaction (LockerId {self.locker_id})"
 
     def key(self):
         """Return NonExecutingThread key."""
-        return "LockerId {}".format(self.locker_id)
+        return f"LockerId {self.locker_id}"
 
 
 class Thread(object):
@@ -74,9 +74,7 @@ class Lock(object):
         self.resource = resource
 
     def __eq__(self, other):
-        if isinstance(other, Lock):
-            return self.addr == other.addr
-        return NotImplemented
+        return self.addr == other.addr if isinstance(other, Lock) else NotImplemented
 
     def __ne__(self, other):
         return not self == other
@@ -118,9 +116,7 @@ class Graph(object):
 
     def find_node(self, node):
         """Find node in graph."""
-        if node.key() in self.nodes:
-            return self.nodes[node.key()]
-        return None
+        return self.nodes[node.key()] if node.key() in self.nodes else None
 
     def find_from_node(self, from_node):
         """Find from node."""
@@ -174,23 +170,21 @@ class Graph(object):
 
     def to_graph(self, nodes=None, message=None):
         """Return the 'to_graph'."""
-        sb = []
-        sb.append('# Legend:')
-        sb.append('#    Thread 1 -> Lock C (MODE_IX) indicates Thread 1 is waiting on Lock C and'
-                  ' Lock C is currently held in MODE_IX')
-        sb.append('#    Lock C (MODE_IX) -> Thread 2 indicates Lock C is held by Thread 2 in'
-                  ' MODE_IX')
+        sb = [
+            '# Legend:',
+            '#    Thread 1 -> Lock C (MODE_IX) indicates Thread 1 is waiting on Lock C and Lock C is currently held in MODE_IX',
+            '#    Lock C (MODE_IX) -> Thread 2 indicates Lock C is held by Thread 2 in MODE_IX',
+        ]
+
         if message is not None:
             sb.append(message)
-        sb.append('digraph "mongod+lock-status" {')
-        # Draw the graph from left to right. There can be hundreds of threads blocked by the same
-        # resource, but only a few resources involved in a deadlock, so we prefer a long graph
-        # than a super wide one. Long resource / thread names would make a wide graph even wider.
-        sb.append('    rankdir=LR;')
+        sb.extend(('digraph "mongod+lock-status" {', '    rankdir=LR;'))
         for node_key in self.nodes:
-            for next_node_key in self.nodes[node_key]['next_nodes']:
-                sb.append('    "{}" -> "{}";'.format(
-                    self._get_node_escaped(node_key), self._get_node_escaped(next_node_key)))
+            sb.extend(
+                f'    "{self._get_node_escaped(node_key)}" -> "{self._get_node_escaped(next_node_key)}";'
+                for next_node_key in self.nodes[node_key]['next_nodes']
+            )
+
         for node_key in self.nodes:
             color = ""
             if nodes and node_key in nodes:
@@ -215,8 +209,9 @@ class Graph(object):
                 # The graph cycle starts at the index of node in nodes_in_cycle.
                 return nodes_in_cycle[nodes_in_cycle.index(node):]
             if node not in nodes_visited:
-                dfs_nodes = self.depth_first_search(node, nodes_visited, nodes_in_cycle)
-                if dfs_nodes:
+                if dfs_nodes := self.depth_first_search(
+                    node, nodes_visited, nodes_in_cycle
+                ):
                     return dfs_nodes
 
         # This node_key is not part of the graph cycle.
@@ -228,18 +223,21 @@ class Graph(object):
         nodes_visited = set()
         for node in self.nodes:
             if node not in nodes_visited:
-                cycle_path = self.depth_first_search(node, nodes_visited)
-                if cycle_path:
+                if cycle_path := self.depth_first_search(node, nodes_visited):
                     return [str(self.nodes[node_key]['node']) for node_key in cycle_path]
         return None
 
 
 def find_thread(thread_dict, search_thread_id):
     """Find thread."""
-    for (_, thread) in list(thread_dict.items()):
-        if thread.thread_id == search_thread_id:
-            return thread
-    return None
+    return next(
+        (
+            thread
+            for _, thread in list(thread_dict.items())
+            if thread.thread_id == search_thread_id
+        ),
+        None,
+    )
 
 
 def find_func_block(block):
@@ -290,9 +288,10 @@ def find_mutex_holder(graph, thread_dict, show):
     # At time thread_dict was initialized, the mutex holder may not have been found.
     # Use the thread LWP as a substitute for showing output or generating the graph.
     if mutex_holder_lwpid not in thread_dict:
-        print("Warning: Mutex at {} held by thread with LWP {}"
-              " not found in thread_dict. Using LWP to track thread.".format(
-                  mutex_value, mutex_holder_lwpid))
+        print(
+            f"Warning: Mutex at {mutex_value} held by thread with LWP {mutex_holder_lwpid} not found in thread_dict. Using LWP to track thread."
+        )
+
         mutex_holder = Thread(mutex_holder_lwpid, mutex_holder_lwpid, '"[unknown]"')
     else:
         mutex_holder = thread_dict[mutex_holder_lwpid]
@@ -300,14 +299,16 @@ def find_mutex_holder(graph, thread_dict, show):
     (_, mutex_waiter_lwpid, _) = gdb.selected_thread().ptid
     mutex_waiter = thread_dict[mutex_waiter_lwpid]
     if show:
-        print("Mutex at {} held by {} waited on by {}".format(mutex_value, mutex_holder,
-                                                              mutex_waiter))
+        print(
+            f"Mutex at {mutex_value} held by {mutex_holder} waited on by {mutex_waiter}"
+        )
+
     if graph:
         graph.add_edge(mutex_waiter, Lock(int(mutex_value), "Mutex"))
         graph.add_edge(Lock(int(mutex_value), "Mutex"), mutex_holder)
 
 
-def find_lock_manager_holders(graph, thread_dict, show):  # pylint: disable=too-many-locals
+def find_lock_manager_holders(graph, thread_dict, show):    # pylint: disable=too-many-locals
     """Find lock manager holders."""
     frame = find_frame(r'mongo::LockerImpl::')
     if not frame:
@@ -337,8 +338,10 @@ def find_lock_manager_holders(graph, thread_dict, show):  # pylint: disable=too-
         else:
             lock_holder = find_thread(thread_dict, lock_holder_id)
         if show:
-            print("MongoDB Lock at {} held by {} ({}) waited on by {}".format(
-                lock_head, lock_holder, lock_request["mode"], lock_waiter))
+            print(
+                f'MongoDB Lock at {lock_head} held by {lock_holder} ({lock_request["mode"]}) waited on by {lock_waiter}'
+            )
+
         if graph:
             graph.add_edge(lock_waiter, Lock(int(lock_head), lock_request["mode"]))
             graph.add_edge(Lock(int(lock_head), lock_request["mode"]), lock_holder)
@@ -433,9 +436,9 @@ class MongoDBWaitsForGraph(gdb.Command):
             cycle_message = "# No cycle detected in the graph"
             cycle_nodes = graph.detect_cycle()
             if cycle_nodes:
-                cycle_message = "# Cycle detected in the graph nodes %s" % cycle_nodes
+                cycle_message = f"# Cycle detected in the graph nodes {cycle_nodes}"
             if graph_file:
-                print("Saving digraph to %s" % graph_file)
+                print(f"Saving digraph to {graph_file}")
                 with open(graph_file, 'w') as fh:
                     fh.write(graph.to_graph(nodes=cycle_nodes, message=cycle_message))
                 print(cycle_message.split("# ")[1])

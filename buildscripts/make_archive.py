@@ -41,9 +41,8 @@ def main(argv):
     for arg in argv[1:]:
         if arg.startswith("@"):
             file_name = arg[1:]
-            f_handle = open(file_name, "r")
-            args.extend(s1.strip('"') for s1 in shlex.split(f_handle.readline(), posix=False))
-            f_handle.close()
+            with open(file_name, "r") as f_handle:
+                args.extend(s1.strip('"') for s1 in shlex.split(f_handle.readline(), posix=False))
         else:
             args.append(arg)
 
@@ -96,7 +95,7 @@ def make_tar_archive(opts):
         enclosing_file_directory = os.path.dirname(temp_file_location)
         if not os.path.exists(enclosing_file_directory):
             os.makedirs(enclosing_file_directory)
-        print("copying %s => %s" % (input_filename, temp_file_location))
+        print(f"copying {input_filename} => {temp_file_location}")
         if os.path.isdir(input_filename):
             shutil.copytree(input_filename, temp_file_location)
         else:

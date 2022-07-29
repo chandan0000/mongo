@@ -88,11 +88,11 @@ class Repo(_git.Repository):
         """Run git-ls-files and filter the list of files to a valid candidate list."""
         gito = self.git_ls_files(args)
 
-        # This allows us to pick all the interesting files
-        # in the mongo and mongo-enterprise repos
-        file_list = [line.rstrip() for line in gito.splitlines() if filter_function(line.rstrip())]
-
-        return file_list
+        return [
+            line.rstrip()
+            for line in gito.splitlines()
+            if filter_function(line.rstrip())
+        ]
 
     def get_candidate_files(self, filter_function):
         # type: (Callable[[str], bool]) -> List[str]
@@ -109,7 +109,7 @@ class Repo(_git.Repository):
 
         fork_point = self.get_merge_base(["HEAD", origin_branch])
 
-        diff_files = self.git_diff(["--name-only", "%s..HEAD" % (fork_point)])
+        diff_files = self.git_diff(["--name-only", f"{fork_point}..HEAD"])
         diff_files += self.git_diff(["--name-only", "--cached"])
         diff_files += self.git_diff(["--name-only"])
 
@@ -160,11 +160,11 @@ def get_files_to_check_working_tree(filter_function):
     """
     repos = get_repos()
 
-    valid_files = list(
+    return list(
         itertools.chain.from_iterable(
-            [r.get_working_tree_candidates(filter_function) for r in repos]))
-
-    return valid_files
+            [r.get_working_tree_candidates(filter_function) for r in repos]
+        )
+    )
 
 
 def get_valid_files_from_candidates(candidates, filter_fn: Callable[[str], bool]):
@@ -177,10 +177,11 @@ def get_valid_files_from_candidates(candidates, filter_fn: Callable[[str], bool]
     """
     repos = get_repos()
 
-    valid_files = list(
-        itertools.chain.from_iterable([r.get_candidates(candidates, filter_fn) for r in repos]))
-
-    return valid_files
+    return list(
+        itertools.chain.from_iterable(
+            [r.get_candidates(candidates, filter_fn) for r in repos]
+        )
+    )
 
 
 def get_files_to_check(files, filter_function):
@@ -214,10 +215,9 @@ def get_files_to_check_from_patch(patches, filter_function):
         with open(patch, "r", encoding="utf-8") as infile:
             lines += infile.readlines()
 
-    candidates = [check.match(line).group(1) for line in lines if check.match(line)]
+    candidates = [check.match(line)[1] for line in lines if check.match(line)]
 
-    valid_files = get_valid_files_from_candidates(candidates, filter_function)
-    return valid_files
+    return get_valid_files_from_candidates(candidates, filter_function)
 
 
 def get_my_files_to_check(filter_function, origin_branch):
@@ -226,8 +226,11 @@ def get_my_files_to_check(filter_function, origin_branch):
     # Get a list of candidate_files based on diff between this branch and origin/master
     repos = get_repos()
 
-    valid_files = list(
+    return list(
         itertools.chain.from_iterable(
-            [r.get_my_candidate_files(filter_function, origin_branch) for r in repos]))
-
-    return valid_files
+            [
+                r.get_my_candidate_files(filter_function, origin_branch)
+                for r in repos
+            ]
+        )
+    )

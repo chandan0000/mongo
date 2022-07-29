@@ -194,8 +194,7 @@ class _BaseBuildloggerHandler(handlers.BufferedHandler):
 
         self.retry_buffer.extend(buf)
 
-        nb_sent = self._append_logs(self.retry_buffer)
-        if nb_sent:
+        if nb_sent := self._append_logs(self.retry_buffer):
             self.retry_buffer = self.retry_buffer[nb_sent:]
         if close_called and self.retry_buffer:
             # The request to the logkeeper returned an error. We discard the log output rather than
@@ -284,7 +283,7 @@ class BuildloggerServer(object):
         """Return a new build id for sending global logs to."""
         username = self.config["username"]
         password = self.config["password"]
-        builder = "%s_%s" % (self.config["builder"], suffix)
+        builder = f'{self.config["builder"]}_{suffix}'
         build_num = int(self.config["build_num"])
 
         handler = handlers.HTTPHandler(url_root=_config.BUILDLOGGER_URL, username=username,
@@ -330,11 +329,11 @@ class BuildloggerServer(object):
         """Return the build log URL."""
         base_url = _config.BUILDLOGGER_URL.rstrip("/")
         endpoint = APPEND_GLOBAL_LOGS_ENDPOINT % {"build_id": build_id}
-        return "%s/%s" % (base_url, endpoint.strip("/"))
+        return f'{base_url}/{endpoint.strip("/")}'
 
     @staticmethod
     def get_test_log_url(build_id, test_id):
         """Return the test log URL."""
         base_url = _config.BUILDLOGGER_URL.rstrip("/")
         endpoint = APPEND_TEST_LOGS_ENDPOINT % {"build_id": build_id, "test_id": test_id}
-        return "%s/%s" % (base_url, endpoint.strip("/"))
+        return f'{base_url}/{endpoint.strip("/")}'

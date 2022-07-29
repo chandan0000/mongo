@@ -35,9 +35,8 @@ def _check_version(linter, cmd_path, args):
         pattern = r"\b(?:(%s) )?(?P<version>\S+)\b" % (linter.cmd_name)
         required_version = pkg_resources.parse_version(linter.required_version)
 
-        match = re.search(pattern, decoded_output)
-        if match:
-            found_version = match.group('version')
+        if match := re.search(pattern, decoded_output):
+            found_version = match['version']
         else:
             found_version = '0.0'
 
@@ -201,8 +200,8 @@ class LintRunner(object):
 
                     # Take a lock to ensure diffs do not get mixed when printed to the screen
                     with self.print_lock:
-                        print("ERROR: Found diff for " + file_name)
-                        print("To fix formatting errors, run pylinters.py fix %s" % (file_name))
+                        print(f"ERROR: Found diff for {file_name}")
+                        print(f"To fix formatting errors, run pylinters.py fix {file_name}")
 
                         count = 0
                         for line in result:

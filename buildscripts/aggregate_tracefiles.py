@@ -27,9 +27,7 @@ def aggregate(inputs, output):
 
 def getfilesize(path):
     """Return file size of 'path'."""
-    if not os.path.isfile(path):
-        return 0
-    return os.path.getsize(path)
+    return os.path.getsize(path) if os.path.isfile(path) else 0
 
 
 def main():

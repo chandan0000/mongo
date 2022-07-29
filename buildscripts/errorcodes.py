@@ -80,8 +80,7 @@ def get_all_source_files(prefix='.'):
                     continue
                 if _DIR_EXCLUDE_RE.fullmatch(fx.name):
                     continue
-                for child in walk(fx):
-                    yield child
+                yield from walk(fx)
             elif fx.is_file() and _FILE_INCLUDE_RE.fullmatch(fx.name):
                 yield fx
 
@@ -93,7 +92,7 @@ def foreach_source_file(callback, src_root):
     """Invoke a callback on the text of each source file."""
     for source_file in get_all_source_files(prefix=src_root):
         if list_files:
-            print('scanning file: ' + source_file)
+            print(f'scanning file: {source_file}')
         with open(source_file, 'r', encoding='utf-8') as fh:
             callback(source_file, fh.read())
 
@@ -186,10 +185,10 @@ def read_error_codes(src_root='src/mongo'):
         codes.append(assert_loc)
         code = assert_loc.code
 
-        if not code in seen:
+        if code not in seen:
             seen[code] = assert_loc
         else:
-            if not code in dups:
+            if code not in dups:
                 # on first duplicate, add original to dups, errors
                 dups[code].append(seen[code])
                 errors.append(seen[code])
@@ -224,20 +223,20 @@ def read_error_codes(src_root='src/mongo'):
         print("  %s:%d:%d:%s" % (loc.sourceFile, line, col, loc.lines))
 
     for code, locations in list(dups.items()):
-        print("DUPLICATE IDS: %s" % code)
+        print(f"DUPLICATE IDS: {code}")
         for loc in locations:
             line, col = get_line_and_column_for_position(loc)
             print("  %s:%d:%d:%s" % (loc.sourceFile, line, col, loc.lines))
 
     for loc in malformed:
         line, col = get_line_and_column_for_position(loc)
-        print("MALFORMED ID: %s" % loc.code)
+        print(f"MALFORMED ID: {loc.code}")
         print("  %s:%d:%d:%s" % (loc.sourceFile, line, col, loc.lines))
 
     return (codes, errors, seen)
 
 
-def replace_bad_codes(errors, next_code_generator):  # pylint: disable=too-many-locals
+def replace_bad_codes(errors, next_code_generator):    # pylint: disable=too-many-locals
     """Modify C++ source files to replace invalid assertion codes.
 
     For now, we only modify zero codes.
@@ -257,7 +256,7 @@ def replace_bad_codes(errors, next_code_generator):  # pylint: disable=too-many-
     for assert_loc in reversed(sorted(set(zero_errors))):
         (source_file, byte_offset, _, _) = assert_loc
         line_num, _ = get_line_and_column_for_position(assert_loc)
-        print("UPDATING_FILE: %s:%s" % (source_file, line_num))
+        print(f"UPDATING_FILE: {source_file}:{line_num}")
 
         ln = line_num - 1
 
@@ -288,7 +287,7 @@ def coerce_to_number(ticket_value):
     ticket_re = re.compile(r'(?:SERVER-)?(\d+)', re.IGNORECASE)
     matches = ticket_re.fullmatch(ticket_value)
     if not matches:
-        print("Unknown ticket number. Input: " + ticket_value)
+        print(f"Unknown ticket number. Input: {ticket_value}")
         return -1
 
     return int(matches.group(1))
@@ -320,9 +319,9 @@ def main():
 
     next_code_gen = get_next_code(seen, coerce_to_number(options.ticket))
 
-    print("ok: %s" % ok)
+    print(f"ok: {ok}")
     if not options.replace:
-        print("next: %s" % next(next_code_gen))
+        print(f"next: {next(next_code_gen)}")
 
     if ok:
         sys.exit(0)
